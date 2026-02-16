@@ -1,0 +1,18 @@
+#!/bin/sh
+
+echo "Running pre-commit checks..."
+
+# Format and stage changes
+echo "Formatting..."
+bun run format
+git add -u
+
+# Typecheck
+echo "Typechecking..."
+bun run typecheck --output-logs=errors-only || exit 1
+
+# Test
+echo "Running tests..."
+bun run test --output-logs=errors-only || exit 1
+
+echo "All checks passed!"

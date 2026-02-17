@@ -1,0 +1,21 @@
+{
+  "name": "@agent-layer/bench",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bench": "bun run src/bench.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "integration-test": "bun test src/bench.e2e.test.ts",
+    "integration-test:live": "RUN_CODEX_LIVE_E2E=1 bun test src/bench.e2e.test.ts",
+    "test": "bun test src/bench.parse.test.ts"
+  },
+  "dependencies": {
+    "@agent-layer/ai-sdk-codex-sdk": "workspace:*",
+    "ai": "^6.0.87"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.9",
+    "typescript": "^5.9.3"
+  }
+}

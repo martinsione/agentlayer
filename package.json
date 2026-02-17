@@ -9,7 +9,9 @@
     "prepare": "git config --local core.hooksPath .githooks",
     "format": "oxfmt .",
     "typecheck": "turbo run typecheck --log-order=grouped",
-    "test": "turbo run test --log-order=grouped"
+    "test": "turbo run test --log-order=grouped",
+    "bench": "turbo run bench",
+    "integration-test": "turbo run integration-test --log-order=grouped"
   },
   "devDependencies": {
     "@types/bun": "1.3.9",

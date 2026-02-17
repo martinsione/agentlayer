@@ -1,4 +1,4 @@
-import { codexSdk } from "@agent-layer/ai-sdk-codex-sdk";
+import { codexSdk } from "@agent-layer/ai-sdk-codex";
 import { streamText } from "ai";
 
 const result = streamText({

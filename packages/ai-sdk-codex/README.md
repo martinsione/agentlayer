@@ -1,13 +1,13 @@
 # AI SDK - Codex SDK Provider
 
-The `@agent-layer/ai-sdk-codex-sdk` package provides a Codex SDK-backed provider for the [AI SDK](https://ai-sdk.dev/docs), using [`@openai/codex-sdk`](https://www.npmjs.com/package/@openai/codex-sdk) under the hood.
+The `@agent-layer/ai-sdk-codex` package provides a Codex SDK-backed provider for the [AI SDK](https://ai-sdk.dev/docs), using [`@openai/codex-sdk`](https://www.npmjs.com/package/@openai/codex-sdk) under the hood.
 
 ## Setup
 
 Install the provider with `ai`:
 
 ```bash
-npm i @agent-layer/ai-sdk-codex-sdk ai
+npm i @agent-layer/ai-sdk-codex ai
 ```
 
 ## Skill for Coding Agents
@@ -23,13 +23,13 @@ npx skills add vercel/ai
 You can import the default provider instance `codexSdk`:
 
 ```ts
-import { codexSdk } from "@agent-layer/ai-sdk-codex-sdk";
+import { codexSdk } from "@agent-layer/ai-sdk-codex";
 ```
 
 Or create a customized provider instance:
 
 ```ts
-import { createCodexSdk } from "@agent-layer/ai-sdk-codex-sdk";
+import { createCodexSdk } from "@agent-layer/ai-sdk-codex";
 
 const provider = createCodexSdk({
   name: "codex-sdk",
@@ -45,7 +45,7 @@ const provider = createCodexSdk({
 ## Example
 
 ```ts
-import { codexSdk } from "@agent-layer/ai-sdk-codex-sdk";
+import { codexSdk } from "@agent-layer/ai-sdk-codex";
 import { generateText } from "ai";
 
 const { text } = await generateText({
@@ -59,7 +59,7 @@ console.log(text);
 ## Including Model IDs for Auto-Completion
 
 ```ts
-import { createCodexSdk } from "@agent-layer/ai-sdk-codex-sdk";
+import { createCodexSdk } from "@agent-layer/ai-sdk-codex";
 
 type CodexModelIds = "gpt-5.3-codex" | "gpt-5.2-codex" | (string & {});
 
@@ -71,13 +71,13 @@ provider("gpt-5.3-codex");
 To refresh the generated model catalog (model ids + metadata) from upstream Codex:
 
 ```bash
-bun --cwd packages/ai-sdk-codex-sdk run sync:model-catalog
+bun --cwd packages/ai-sdk-codex run sync:model-catalog
 ```
 
 Read generated model metadata at runtime:
 
 ```ts
-import { getCodexSdkModelInfo } from "@agent-layer/ai-sdk-codex-sdk";
+import { getCodexSdkModelInfo } from "@agent-layer/ai-sdk-codex";
 
 const info = getCodexSdkModelInfo("gpt-5.3-codex");
 console.log(info?.contextWindow);

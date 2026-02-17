@@ -1,13 +1,13 @@
 # AI SDK - Claude Agent SDK Provider
 
-The `@agent-layer/ai-sdk-claude-agent-sdk` package provides a Claude Agent SDK-backed provider for the [AI SDK](https://ai-sdk.dev/docs), using [`@anthropic-ai/claude-agent-sdk`](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) under the hood.
+The `@agent-layer/ai-sdk-claude-agent` package provides a Claude Agent SDK-backed provider for the [AI SDK](https://ai-sdk.dev/docs), using [`@anthropic-ai/claude-agent-sdk`](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) under the hood.
 
 ## Setup
 
 Install the provider with `ai`:
 
 ```bash
-npm i @agent-layer/ai-sdk-claude-agent-sdk ai
+npm i @agent-layer/ai-sdk-claude-agent ai
 ```
 
 ## Skill for Coding Agents
@@ -23,13 +23,13 @@ npx skills add vercel/ai
 Import the default provider instance `claudeAgentSdk`:
 
 ```ts
-import { claudeAgentSdk } from "@agent-layer/ai-sdk-claude-agent-sdk";
+import { claudeAgentSdk } from "@agent-layer/ai-sdk-claude-agent";
 ```
 
 Or create a customized provider instance:
 
 ```ts
-import { createClaudeAgentSdk } from "@agent-layer/ai-sdk-claude-agent-sdk";
+import { createClaudeAgentSdk } from "@agent-layer/ai-sdk-claude-agent";
 
 const provider = createClaudeAgentSdk({
   name: "claude-agent-sdk",
@@ -46,7 +46,7 @@ const provider = createClaudeAgentSdk({
 ## Example
 
 ```ts
-import { claudeAgentSdk } from "@agent-layer/ai-sdk-claude-agent-sdk";
+import { claudeAgentSdk } from "@agent-layer/ai-sdk-claude-agent";
 import { generateText } from "ai";
 
 const { text } = await generateText({
@@ -68,7 +68,7 @@ console.log(text);
 - Use runtime discovery for low-maintenance model coverage:
 
 ```ts
-import { listClaudeAgentSdkModels } from "@agent-layer/ai-sdk-claude-agent-sdk";
+import { listClaudeAgentSdkModels } from "@agent-layer/ai-sdk-claude-agent";
 
 const models = await listClaudeAgentSdkModels({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -80,7 +80,7 @@ console.log(models.map((model) => model.value));
 To regenerate the static model id/info files from your current Claude Agent SDK account:
 
 ```bash
-bun --cwd packages/ai-sdk-claude-agent-sdk run sync:model-catalog
+bun --cwd packages/ai-sdk-claude-agent run sync:model-catalog
 ```
 
 ## Option Coverage

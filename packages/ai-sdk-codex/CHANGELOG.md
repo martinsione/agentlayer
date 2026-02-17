@@ -1,3 +1,3 @@
-# @agent-layer/ai-sdk-codex-sdk
+# @agent-layer/ai-sdk-codex
 
 All notable changes to this package will be documented in this file.

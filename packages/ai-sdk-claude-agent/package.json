@@ -1,5 +1,5 @@
 {
-  "name": "@agent-layer/ai-sdk-claude-agent-sdk",
+  "name": "@agent-layer/ai-sdk-claude-agent",
   "version": "0.0.0",
   "keywords": [
     "agent",
@@ -17,7 +17,7 @@
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/martinsione/agentlayer.git",
-    "directory": "packages/ai-sdk-claude-agent-sdk"
+    "directory": "packages/ai-sdk-claude-agent"
   },
   "files": [
     "dist/**/*",

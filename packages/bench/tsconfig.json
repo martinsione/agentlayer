@@ -7,8 +7,8 @@
     "incremental": false,
     "baseUrl": ".",
     "paths": {
-      "@agent-layer/ai-sdk-claude-agent-sdk": ["../ai-sdk-claude-agent-sdk/src/index.ts"],
-      "@agent-layer/ai-sdk-codex-sdk": ["../ai-sdk-codex-sdk/src/index.ts"]
+      "@agent-layer/ai-sdk-claude-agent": ["../ai-sdk-claude-agent/src/index.ts"],
+      "@agent-layer/ai-sdk-codex": ["../ai-sdk-codex/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts"],

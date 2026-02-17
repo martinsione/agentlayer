@@ -1,5 +1,5 @@
-import { createClaudeAgentSdk } from "@agent-layer/ai-sdk-claude-agent-sdk";
-import type { ClaudeAgentSdkModelSettings } from "@agent-layer/ai-sdk-claude-agent-sdk";
+import { createClaudeAgentSdk } from "@agent-layer/ai-sdk-claude-agent";
+import type { ClaudeAgentSdkModelSettings } from "@agent-layer/ai-sdk-claude-agent";
 import { generateText, streamText } from "ai";
 import type { BenchProvider, ProviderArgs } from "./types";
 

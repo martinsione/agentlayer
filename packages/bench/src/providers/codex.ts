@@ -1,4 +1,4 @@
-import { createCodexSdk } from "@agent-layer/ai-sdk-codex-sdk";
+import { createCodexSdk } from "@agent-layer/ai-sdk-codex";
 import { generateText, streamText } from "ai";
 import type { BenchProvider, ProviderArgs } from "./types";
 

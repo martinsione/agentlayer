@@ -88,6 +88,7 @@ console.log(info?.contextWindow);
 - This provider targets `LanguageModelV3` only.
 - AI SDK tools are ignored by the provider because Codex executes tools autonomously.
 - Provider-executed Codex tools are surfaced through stream events (`tool-call`, `tool-result`).
+- Set `includeRawChunks: true` in AI SDK call options to receive raw Codex `ThreadEvent` payloads in the stream.
 - Codex SDK authentication (ChatGPT account or API key) must already be configured in your environment.
 
 ## Documentation

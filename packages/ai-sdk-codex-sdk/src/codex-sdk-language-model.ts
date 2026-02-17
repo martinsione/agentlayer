@@ -39,16 +39,19 @@ export class CodexSdkLanguageModel implements LanguageModelV3 {
     this.provider = init.providerId;
     this.modelId = init.modelId;
 
-    const baseUrl = resolveBaseUrl(init.providerSettings);
+    const {
+      threadOptions: _threadOptions,
+      name: _name,
+      provider: _provider,
+      baseURL,
+      baseUrl,
+      ...providerCodexOptions
+    } = init.providerSettings;
 
+    const resolvedBaseUrl = baseUrl ?? baseURL;
     const codexOptions = {
-      ...(init.providerSettings.apiKey != null ? { apiKey: init.providerSettings.apiKey } : {}),
-      ...(baseUrl != null ? { baseUrl } : {}),
-      ...(init.providerSettings.codexPathOverride != null
-        ? { codexPathOverride: init.providerSettings.codexPathOverride }
-        : {}),
-      ...(init.providerSettings.env != null ? { env: init.providerSettings.env } : {}),
-      ...(init.providerSettings.config != null ? { config: init.providerSettings.config } : {}),
+      ...providerCodexOptions,
+      ...(resolvedBaseUrl != null ? { baseUrl: resolvedBaseUrl } : {}),
     };
     this.codex = new Codex(codexOptions);
 
@@ -99,6 +102,7 @@ export class CodexSdkLanguageModel implements LanguageModelV3 {
 
   async doStream(options: LanguageModelV3CallOptions): Promise<LanguageModelV3StreamResult> {
     const { input, warnings: promptWarnings } = mapPromptToCodexInput(options.prompt);
+    const includeRawChunks = options.includeRawChunks === true;
 
     const callSettings = getCallSettings(options.providerOptions, this.provider);
     const threadOptions = mergeThreadOptions(
@@ -164,6 +168,13 @@ export class CodexSdkLanguageModel implements LanguageModelV3 {
 
         try {
           for await (const event of streamed.events) {
+            if (includeRawChunks) {
+              controller.enqueue({
+                type: "raw",
+                rawValue: event,
+              });
+            }
+
             switch (event.type) {
               case "thread.started": {
                 threadId = event.thread_id;
@@ -504,9 +515,6 @@ function getUnsupportedWarnings(
   if (options.tools != null || options.toolChoice != null) {
     pushUnsupported("tools", "codex-sdk provider ignores AI SDK tools and toolChoice options.");
   }
-  if (options.includeRawChunks) {
-    pushUnsupported("includeRawChunks", "codex-sdk provider does not surface raw provider chunks.");
-  }
   if (hasHeaders(options.headers)) {
     pushUnsupported(
       "headers",
@@ -692,10 +700,6 @@ function mergeThreadOptions(
 function withoutThreadId(settings: CodexSdkCallSettings): Partial<ThreadOptions> {
   const { threadId: _threadId, ...threadOptions } = settings;
   return threadOptions;
-}
-
-function resolveBaseUrl(settings: CodexSdkProviderSettings): string | undefined {
-  return settings.baseUrl ?? settings.baseURL;
 }
 
 function asError(error: unknown): Error {

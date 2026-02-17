@@ -1,8 +1,7 @@
 import type { CodexOptions, ThreadOptions } from "@openai/codex-sdk";
 export type { CodexSdkModelId } from "./codex-sdk-model-ids";
 
-export interface CodexSdkProviderSettings {
-  apiKey?: CodexOptions["apiKey"];
+export interface CodexSdkProviderSettings extends Omit<CodexOptions, "baseUrl"> {
   /**
    * Base URL for the Codex backend.
    */
@@ -12,10 +11,6 @@ export interface CodexSdkProviderSettings {
    * @deprecated Use `baseURL` instead.
    */
   baseUrl?: CodexOptions["baseUrl"];
-
-  codexPathOverride?: CodexOptions["codexPathOverride"];
-  env?: CodexOptions["env"];
-  config?: CodexOptions["config"];
   threadOptions?: ThreadOptions;
 
   /**

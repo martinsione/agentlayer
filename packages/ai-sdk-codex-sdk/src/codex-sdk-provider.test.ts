@@ -108,6 +108,47 @@ describe("createCodexSdk", () => {
     });
   });
 
+  it("forwards additional codex options to the Codex constructor", async () => {
+    const run = vi.fn().mockResolvedValue({
+      items: [{ id: "a1", type: "agent_message", text: "ok" }],
+      finalResponse: "ok",
+      usage: null,
+    });
+
+    sdkMocks.startThread.mockReturnValue({
+      id: "thread-extra-opts-1",
+      run,
+      runStreamed: vi.fn(),
+    });
+
+    const provider = createCodexSdk({
+      name: "codex-custom",
+      apiKey: "key-123",
+      baseURL: "https://codex.alias.example.test",
+      threadOptions: {
+        approvalPolicy: "never",
+      },
+      // Runtime pass-through for fields that may exist in newer SDK versions.
+      experimentalFlagFromFutureSdk: true,
+    } as any);
+
+    const model = provider("gpt-5");
+    await model.doGenerate(callOptions());
+
+    expect(sdkMocks.ctor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "key-123",
+        baseUrl: "https://codex.alias.example.test",
+        experimentalFlagFromFutureSdk: true,
+      }),
+    );
+
+    const ctorArgs = sdkMocks.ctor.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(ctorArgs.name).toBeUndefined();
+    expect(ctorArgs.provider).toBeUndefined();
+    expect(ctorArgs.threadOptions).toBeUndefined();
+  });
+
   it("uses startThread and maps generate result, usage, metadata, and warnings", async () => {
     const run = vi.fn().mockResolvedValue({
       items: [{ id: "a1", type: "agent_message", text: "Hello world" }],
@@ -467,6 +508,40 @@ describe("createCodexSdk", () => {
     });
   });
 
+  it("emits raw stream chunks when includeRawChunks is enabled", async () => {
+    const startedEvent = { type: "thread.started", thread_id: "thread-stream-raw-1" } as const;
+    const completedEvent = {
+      type: "turn.completed",
+      usage: { input_tokens: 2, cached_input_tokens: 0, output_tokens: 1 },
+    } as const;
+
+    const runStreamed = vi.fn().mockResolvedValue({
+      events: createAsyncEvents([startedEvent, completedEvent]),
+    });
+
+    sdkMocks.startThread.mockReturnValue({
+      id: "thread-stream-raw-1",
+      run: vi.fn(),
+      runStreamed,
+    });
+
+    const provider = createCodexSdk();
+    const model = provider("gpt-5");
+
+    const streamResult = await model.doStream(
+      callOptions({
+        includeRawChunks: true,
+      }),
+    );
+    const parts = await collectStream(streamResult.stream);
+
+    const rawParts = parts.filter((part) => part.type === "raw");
+    expect(rawParts).toEqual([
+      { type: "raw", rawValue: startedEvent },
+      { type: "raw", rawValue: completedEvent },
+    ]);
+  });
+
   it("streams turn-failed as error part and error finish reason", async () => {
     const runStreamed = vi.fn().mockResolvedValue({
       events: createAsyncEvents([
@@ -671,11 +746,6 @@ describe("createCodexSdk", () => {
     );
 
     expect(result.warnings).toEqual([
-      {
-        type: "unsupported",
-        feature: "includeRawChunks",
-        details: "codex-sdk provider does not surface raw provider chunks.",
-      },
       {
         type: "unsupported",
         feature: "headers",

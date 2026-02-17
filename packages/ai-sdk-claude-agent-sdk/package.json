@@ -1,0 +1,75 @@
+{
+  "name": "@agent-layer/ai-sdk-claude-agent-sdk",
+  "version": "0.0.0",
+  "keywords": [
+    "agent",
+    "ai",
+    "ai-sdk",
+    "anthropic",
+    "claude",
+    "provider"
+  ],
+  "homepage": "https://github.com/martinsione/agentlayer#readme",
+  "bugs": {
+    "url": "https://github.com/martinsione/agentlayer/issues"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/martinsione/agentlayer.git",
+    "directory": "packages/ai-sdk-claude-agent-sdk"
+  },
+  "files": [
+    "dist/**/*",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
+    "!src/**/__snapshots__",
+    "!src/**/__fixtures__",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "bun run clean && tsup --tsconfig tsconfig.build.json",
+    "build:watch": "bun run clean && tsup --watch",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "type-check": "tsc --build",
+    "sync:model-catalog": "bun run scripts/sync-model-ids.ts",
+    "sync:model-ids": "bun run scripts/sync-model-ids.ts",
+    "transit": "echo transit",
+    "typecheck": "tsc --build",
+    "test": "bun run test:node",
+    "test:update": "vitest --config vitest.node.config.ts --run -u",
+    "test:watch": "vitest --config vitest.node.config.ts",
+    "test:node": "vitest --config vitest.node.config.ts --run"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "^3.0.8",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.45"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

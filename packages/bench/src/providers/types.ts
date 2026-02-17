@@ -1,4 +1,4 @@
-export type ProviderName = "codex";
+export type ProviderName = "codex" | "claude-agent";
 
 export type BenchRunResult = {
   text: string;

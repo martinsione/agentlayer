@@ -11,11 +11,13 @@
     "test": "bun test src/bench.parse.test.ts"
   },
   "dependencies": {
+    "@agent-layer/ai-sdk-claude-agent-sdk": "workspace:*",
     "@agent-layer/ai-sdk-codex-sdk": "workspace:*",
     "ai": "^6.0.87"
   },
   "devDependencies": {
     "@types/bun": "1.3.9",
+    "@types/node": "^24.3.0",
     "typescript": "^5.9.3"
   }
 }

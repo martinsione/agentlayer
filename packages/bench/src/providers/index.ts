@@ -1,11 +1,17 @@
+import { claudeAgentProvider } from "./claude-agent";
 import { codexProvider } from "./codex";
 import type { BenchProvider, ProviderName } from "./types";
 
 const PROVIDERS: Record<ProviderName, BenchProvider> = {
+  "claude-agent": claudeAgentProvider,
   codex: codexProvider,
 };
 
 function parseProviderName(value: string | undefined): ProviderName | undefined {
+  if (value === "claude-agent") {
+    return value;
+  }
+
   if (value === "codex") {
     return value;
   }

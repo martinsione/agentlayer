@@ -39,6 +39,32 @@ function createMockQuery(messages: unknown[]) {
   return iterator;
 }
 
+function createSuccessfulResultQuery() {
+  return createMockQuery([
+    {
+      type: "result",
+      subtype: "success",
+      session_id: "session-success-1",
+      uuid: "result-success-1",
+      is_error: false,
+      result: "ok",
+      stop_reason: "end_turn",
+      total_cost_usd: 0,
+      num_turns: 1,
+      duration_ms: 1,
+      duration_api_ms: 1,
+      permission_denials: [],
+      modelUsage: {},
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    },
+  ]);
+}
+
 async function collectStream(stream: ReadableStream<any>): Promise<any[]> {
   const parts: any[] = [];
   for await (const part of stream as any) {
@@ -78,7 +104,97 @@ describe("createClaudeAgentSdk", () => {
     const provider = createClaudeAgentSdk();
 
     expect(() => provider.embeddingModel("text-embedding")).toThrow(NoSuchModelError);
+    expect(() => provider.textEmbeddingModel("text-embedding")).toThrow(NoSuchModelError);
     expect(() => provider.imageModel("image-model")).toThrow(NoSuchModelError);
+  });
+
+  it("supports canonical providerOptions key when provider uses a custom name", async () => {
+    sdkMocks.query.mockReturnValue(createSuccessfulResultQuery());
+
+    const provider = createClaudeAgentSdk({
+      name: "claude-custom",
+      queryOptions: {
+        cwd: "/repo/default",
+      },
+    });
+
+    const model = provider("default");
+
+    await model.doGenerate(
+      callOptions({
+        providerOptions: {
+          "claude-agent-sdk": {
+            cwd: "/repo/canonical",
+          },
+        },
+      }),
+    );
+
+    expect(sdkMocks.query).toHaveBeenCalledWith({
+      prompt: "[user]\nHello from test",
+      options: expect.objectContaining({
+        model: "default",
+        cwd: "/repo/canonical",
+      }),
+    });
+  });
+
+  it("merges canonical and custom providerOptions with custom taking precedence", async () => {
+    sdkMocks.query.mockReturnValue(createSuccessfulResultQuery());
+
+    const provider = createClaudeAgentSdk({
+      name: "claude-custom",
+      queryOptions: {
+        cwd: "/repo/default",
+      },
+    });
+
+    const model = provider("default");
+
+    await model.doGenerate(
+      callOptions({
+        providerOptions: {
+          "claude-agent-sdk": {
+            cwd: "/repo/canonical",
+            permissionMode: "default",
+          },
+          "claude-custom": {
+            cwd: "/repo/custom",
+          },
+        },
+      }),
+    );
+
+    expect(sdkMocks.query).toHaveBeenCalledWith({
+      prompt: "[user]\nHello from test",
+      options: expect.objectContaining({
+        model: "default",
+        cwd: "/repo/custom",
+        permissionMode: "default",
+      }),
+    });
+  });
+
+  it("prefers baseURL over deprecated baseUrl when both are provided", async () => {
+    sdkMocks.query.mockReturnValue(createSuccessfulResultQuery());
+
+    const provider = createClaudeAgentSdk({
+      baseURL: "https://anthropic.canonical.example.test",
+      baseUrl: "https://anthropic.deprecated.example.test",
+    });
+    const model = provider("default");
+
+    await model.doGenerate(callOptions());
+
+    expect(sdkMocks.query).toHaveBeenCalledWith({
+      prompt: "[user]\nHello from test",
+      options: expect.objectContaining({
+        model: "default",
+        env: expect.objectContaining({
+          ANTHROPIC_BASE_URL: "https://anthropic.canonical.example.test",
+        }),
+      }),
+    });
   });
 
   it("maps doGenerate result, warnings, and provider metadata", async () => {
@@ -356,6 +472,70 @@ describe("createClaudeAgentSdk", () => {
           },
         },
       },
+    });
+  });
+
+  it("does not emit duplicate tool results when both tool_result block and tool_use_result are present", async () => {
+    sdkMocks.query.mockReturnValue(
+      createMockQuery([
+        {
+          type: "assistant",
+          session_id: "session-stream-dedup-1",
+          uuid: "assistant-dedup-1",
+          parent_tool_use_id: null,
+          message: {
+            content: [{ type: "tool_use", id: "toolu_1", name: "Bash", input: { command: "ls" } }],
+          },
+        },
+        {
+          type: "user",
+          session_id: "session-stream-dedup-1",
+          uuid: "user-dedup-1",
+          parent_tool_use_id: "toolu_1",
+          tool_use_result: "from-tool_use_result",
+          message: {
+            role: "user",
+            content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "from-content" }],
+          },
+        },
+        {
+          type: "result",
+          subtype: "success",
+          session_id: "session-stream-dedup-1",
+          uuid: "result-dedup-1",
+          is_error: false,
+          result: "done",
+          stop_reason: "end_turn",
+          total_cost_usd: 0,
+          num_turns: 1,
+          duration_ms: 1,
+          duration_api_ms: 1,
+          permission_denials: [],
+          modelUsage: {},
+          usage: {
+            input_tokens: 1,
+            output_tokens: 1,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      ]),
+    );
+
+    const provider = createClaudeAgentSdk();
+    const model = provider("default");
+
+    const streamResult = await model.doStream(callOptions());
+    const parts = await collectStream(streamResult.stream);
+
+    const toolResults = parts.filter((part) => part.type === "tool-result");
+    expect(toolResults).toHaveLength(1);
+    expect(toolResults[0]).toEqual({
+      type: "tool-result",
+      toolCallId: "toolu_1",
+      toolName: "Bash",
+      dynamic: true,
+      result: "from-content",
     });
   });
 

@@ -14,6 +14,7 @@ export interface ClaudeAgentSdkProvider<
   (modelId: MODEL_IDS, settings?: ClaudeAgentSdkModelSettings): LanguageModelV3;
   languageModel(modelId: MODEL_IDS, settings?: ClaudeAgentSdkModelSettings): LanguageModelV3;
   agent(modelId: MODEL_IDS, settings?: ClaudeAgentSdkModelSettings): LanguageModelV3;
+  textEmbeddingModel(modelId: string): never;
 }
 
 export function createClaudeAgentSdk<MODEL_IDS extends string = ClaudeAgentSdkModelId>(
@@ -47,6 +48,7 @@ export function createClaudeAgentSdk<MODEL_IDS extends string = ClaudeAgentSdkMo
   provider.embeddingModel = (modelId: string) => {
     throw new NoSuchModelError({ modelId, modelType: "embeddingModel" });
   };
+  provider.textEmbeddingModel = provider.embeddingModel;
   provider.imageModel = (modelId: string) => {
     throw new NoSuchModelError({ modelId, modelType: "imageModel" });
   };

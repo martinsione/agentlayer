@@ -59,7 +59,7 @@ function resolveEnv(
     env.ANTHROPIC_AUTH_TOKEN = providerSettings.authToken;
   }
 
-  const baseURL = providerSettings.baseUrl ?? providerSettings.baseURL;
+  const baseURL = providerSettings.baseURL ?? providerSettings.baseUrl;
   if (baseURL != null && env.ANTHROPIC_BASE_URL == null) {
     env.ANTHROPIC_BASE_URL = baseURL;
   }

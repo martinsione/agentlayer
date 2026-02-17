@@ -95,12 +95,13 @@ console.log(info?.contextWindow);
 
 Audited against `@openai/codex-sdk@0.101.0`.
 
-- `CodexOptions` support: `createCodexSdk(...)` forwards all current `CodexOptions` fields. `baseUrl` is supported via `baseURL` (preferred) and `baseUrl` (deprecated alias).
+- `CodexOptions` support: `createCodexSdk(...)` forwards all current `CodexOptions` fields. `baseUrl` is supported via `baseURL` (preferred) and `baseUrl` (deprecated alias). If both are provided, `baseURL` wins.
 - `ThreadOptions` support: supported at all adapter layers:
   - Provider default: `createCodexSdk({ threadOptions: ... })`
   - Model default: `codexSdk(modelId, modelSettings)`
   - Per-call override: `providerOptions["<provider-name>"]`
 - Resume support: `providerOptions["<provider-name>"].threadId` maps to `codex.resumeThread(threadId, threadOptions)`.
+- Provider options lookup supports both `providerOptions["codex-sdk"]` (canonical key) and `providerOptions["<provider-name>"]` (custom provider name). If both are present, custom-key values override canonical values.
 - Turn options support: AI SDK `abortSignal` maps to Codex `TurnOptions.signal`; AI SDK JSON response schema maps to Codex `TurnOptions.outputSchema` (`responseFormat.name`/`description` are mapped to schema `title`/`description` when missing).
 
 Not fully passthrough:

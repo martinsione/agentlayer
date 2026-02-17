@@ -48,7 +48,7 @@ export class CodexSdkLanguageModel implements LanguageModelV3 {
       ...providerCodexOptions
     } = init.providerSettings;
 
-    const resolvedBaseUrl = baseUrl ?? baseURL;
+    const resolvedBaseUrl = baseURL ?? baseUrl;
     const codexOptions = {
       ...providerCodexOptions,
       ...(resolvedBaseUrl != null ? { baseUrl: resolvedBaseUrl } : {}),
@@ -600,12 +600,24 @@ function getCallSettings(providerOptions: unknown, providerId: string): CodexSdk
     return {};
   }
 
-  const value = (providerOptions as Record<string, unknown>)[providerId];
-  if (value == null || typeof value !== "object" || Array.isArray(value)) {
-    return {};
+  const readProviderSettings = (providerKey: string): CodexSdkCallSettings | null => {
+    const value = (providerOptions as Record<string, unknown>)[providerKey];
+    if (value == null || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+    return value as CodexSdkCallSettings;
+  };
+
+  const canonicalSettings = readProviderSettings("codex-sdk");
+  if (providerId === "codex-sdk") {
+    return canonicalSettings ?? {};
   }
 
-  return value as CodexSdkCallSettings;
+  const customSettings = readProviderSettings(providerId);
+  return {
+    ...(canonicalSettings ?? {}),
+    ...(customSettings ?? {}),
+  };
 }
 
 function mapUsage(usage: Usage | null | undefined, includeRaw = true): LanguageModelV3Usage {

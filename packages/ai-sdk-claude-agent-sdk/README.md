@@ -96,7 +96,8 @@ Audited against `@anthropic-ai/claude-agent-sdk@0.2.45`.
   - Provider defaults: `createClaudeAgentSdk({ queryOptions: ... })`
   - Model defaults: `claudeAgentSdk(modelId, modelSettings)`
   - Per-call overrides: `providerOptions["<provider-name>"]`
-- Provider convenience aliases: `apiKey`, `authToken`, `baseURL`/`baseUrl`, and `env` are merged into Claude process env (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`).
+- Provider convenience aliases: `apiKey`, `authToken`, `baseURL`/`baseUrl`, and `env` are merged into Claude process env (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`). If both `baseURL` and `baseUrl` are provided, `baseURL` wins.
+- Provider options lookup supports both `providerOptions["claude-agent-sdk"]` (canonical key) and `providerOptions["<provider-name>"]` (custom provider name). If both are present, custom-key values override canonical values.
 
 AI SDK call options currently not forwarded to Claude Agent SDK (warnings emitted):
 

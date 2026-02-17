@@ -309,6 +309,7 @@ function emitUserToolResults(
 ): void {
   const payload = asObject(message.message);
   const content = payload?.content;
+  const emittedToolResultIds = new Set<string>();
 
   if (Array.isArray(content)) {
     for (const block of content) {
@@ -331,11 +332,15 @@ function emitUserToolResults(
         result: result as any,
         ...(isError ? { isError: true } : {}),
       });
+      emittedToolResultIds.add(toolCallId);
     }
   }
 
   if (message.tool_use_result != null && message.parent_tool_use_id != null) {
     const toolCallId = message.parent_tool_use_id;
+    if (emittedToolResultIds.has(toolCallId)) {
+      return;
+    }
     const toolName = toolCallNameById.get(toolCallId) ?? "tool";
 
     controller.enqueue({
@@ -458,16 +463,28 @@ function getCallSettings(providerOptions: unknown, providerId: string): ClaudeAg
     return {};
   }
 
-  const providerCallOptions = (providerOptions as Record<string, unknown>)[providerId];
-  if (
-    providerCallOptions == null ||
-    typeof providerCallOptions !== "object" ||
-    Array.isArray(providerCallOptions)
-  ) {
-    return {};
+  const readProviderSettings = (providerKey: string): ClaudeAgentSdkCallSettings | null => {
+    const providerCallOptions = (providerOptions as Record<string, unknown>)[providerKey];
+    if (
+      providerCallOptions == null ||
+      typeof providerCallOptions !== "object" ||
+      Array.isArray(providerCallOptions)
+    ) {
+      return null;
+    }
+    return providerCallOptions as ClaudeAgentSdkCallSettings;
+  };
+
+  const canonicalSettings = readProviderSettings("claude-agent-sdk");
+  if (providerId === "claude-agent-sdk") {
+    return canonicalSettings ?? {};
   }
 
-  return providerCallOptions as ClaudeAgentSdkCallSettings;
+  const customSettings = readProviderSettings(providerId);
+  return {
+    ...(canonicalSettings ?? {}),
+    ...(customSettings ?? {}),
+  };
 }
 
 function makeQueryOptions(params: {
@@ -520,7 +537,7 @@ function resolveEnv(
     env.ANTHROPIC_AUTH_TOKEN = providerSettings.authToken;
   }
 
-  const baseURL = providerSettings.baseUrl ?? providerSettings.baseURL;
+  const baseURL = providerSettings.baseURL ?? providerSettings.baseUrl;
   if (baseURL != null && env.ANTHROPIC_BASE_URL == null) {
     env.ANTHROPIC_BASE_URL = baseURL;
   }

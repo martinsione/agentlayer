@@ -59,4 +59,36 @@ describe("listClaudeAgentSdkModels", () => {
 
     expect(close).toHaveBeenCalledTimes(1);
   });
+
+  it("prefers baseURL over deprecated baseUrl when both are provided", async () => {
+    const close = vi.fn();
+    const supportedModels = vi.fn().mockResolvedValue([
+      {
+        value: "claude-sonnet-4-6",
+        displayName: "Claude Sonnet 4.6",
+        description: "Balanced",
+      },
+    ]);
+
+    sdkMocks.query.mockReturnValue({
+      close,
+      supportedModels,
+    });
+
+    await listClaudeAgentSdkModels({
+      baseURL: "https://anthropic.canonical.example.test",
+      baseUrl: "https://anthropic.deprecated.example.test",
+    });
+
+    expect(sdkMocks.query).toHaveBeenCalledWith({
+      prompt: expect.any(Object),
+      options: expect.objectContaining({
+        env: expect.objectContaining({
+          ANTHROPIC_BASE_URL: "https://anthropic.canonical.example.test",
+        }),
+      }),
+    });
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
 });

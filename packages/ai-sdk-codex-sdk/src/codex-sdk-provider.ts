@@ -10,6 +10,7 @@ export type { CodexSdkProviderSettings } from "./codex-sdk-options";
 export interface CodexSdkProvider<MODEL_IDS extends string = CodexSdkModelId> extends ProviderV3 {
   (modelId: MODEL_IDS, settings?: CodexSdkModelSettings): LanguageModelV3;
   languageModel(modelId: MODEL_IDS, settings?: CodexSdkModelSettings): LanguageModelV3;
+  textEmbeddingModel(modelId: string): never;
 }
 
 export function createCodexSdk<MODEL_IDS extends string = CodexSdkModelId>(
@@ -42,6 +43,7 @@ export function createCodexSdk<MODEL_IDS extends string = CodexSdkModelId>(
   provider.embeddingModel = (modelId: string) => {
     throw new NoSuchModelError({ modelId, modelType: "embeddingModel" });
   };
+  provider.textEmbeddingModel = provider.embeddingModel;
   provider.imageModel = (modelId: string) => {
     throw new NoSuchModelError({ modelId, modelType: "imageModel" });
   };

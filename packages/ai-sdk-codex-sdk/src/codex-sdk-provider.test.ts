@@ -71,6 +71,7 @@ describe("createCodexSdk", () => {
     const provider = createCodexSdk();
 
     expect(() => provider.embeddingModel("text-embedding-3-large")).toThrow(NoSuchModelError);
+    expect(() => provider.textEmbeddingModel("text-embedding-3-large")).toThrow(NoSuchModelError);
     expect(() => provider.imageModel("gpt-image-1")).toThrow(NoSuchModelError);
   });
 
@@ -106,6 +107,34 @@ describe("createCodexSdk", () => {
         threadId: "thread-alias-1",
       },
     });
+  });
+
+  it("prefers baseURL over deprecated baseUrl when both are provided", async () => {
+    const run = vi.fn().mockResolvedValue({
+      items: [{ id: "a1", type: "agent_message", text: "Hello from alias config" }],
+      finalResponse: "Hello from alias config",
+      usage: null,
+    });
+
+    sdkMocks.startThread.mockReturnValue({
+      id: "thread-alias-2",
+      run,
+      runStreamed: vi.fn(),
+    });
+
+    const provider = createCodexSdk({
+      baseURL: "https://codex.canonical.example.test",
+      baseUrl: "https://codex.deprecated.example.test",
+    });
+
+    const model = provider("gpt-5");
+    await model.doGenerate(callOptions());
+
+    expect(sdkMocks.ctor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseUrl: "https://codex.canonical.example.test",
+      }),
+    );
   });
 
   it("forwards additional codex options to the Codex constructor", async () => {
@@ -292,6 +321,92 @@ describe("createCodexSdk", () => {
     expect(sdkMocks.resumeThread).toHaveBeenCalledWith("thread-existing-1", {
       sandboxMode: "workspace-write",
       workingDirectory: "/repo/call",
+      model: "gpt-5",
+    });
+  });
+
+  it("supports canonical providerOptions key when provider uses a custom name", async () => {
+    const run = vi.fn().mockResolvedValue({
+      items: [{ id: "a1", type: "agent_message", text: "Done" }],
+      finalResponse: "Done",
+      usage: null,
+    });
+
+    sdkMocks.resumeThread.mockReturnValue({
+      id: "thread-existing-canonical-1",
+      run,
+      runStreamed: vi.fn(),
+    });
+
+    const provider = createCodexSdk({
+      name: "codex-custom",
+      threadOptions: {
+        sandboxMode: "workspace-write",
+      },
+    });
+
+    const model = provider("gpt-5");
+
+    await model.doGenerate(
+      callOptions({
+        providerOptions: {
+          "codex-sdk": {
+            threadId: "thread-existing-canonical-1",
+            workingDirectory: "/repo/canonical",
+          },
+        },
+      }),
+    );
+
+    expect(sdkMocks.resumeThread).toHaveBeenCalledWith("thread-existing-canonical-1", {
+      sandboxMode: "workspace-write",
+      workingDirectory: "/repo/canonical",
+      model: "gpt-5",
+    });
+  });
+
+  it("merges canonical and custom providerOptions with custom taking precedence", async () => {
+    const run = vi.fn().mockResolvedValue({
+      items: [{ id: "a1", type: "agent_message", text: "Done" }],
+      finalResponse: "Done",
+      usage: null,
+    });
+
+    sdkMocks.resumeThread.mockReturnValue({
+      id: "thread-existing-merge-1",
+      run,
+      runStreamed: vi.fn(),
+    });
+
+    const provider = createCodexSdk({
+      name: "codex-custom",
+      threadOptions: {
+        sandboxMode: "workspace-write",
+      },
+    });
+
+    const model = provider("gpt-5");
+
+    await model.doGenerate(
+      callOptions({
+        providerOptions: {
+          "codex-sdk": {
+            threadId: "thread-existing-merge-1",
+            workingDirectory: "/repo/canonical",
+            approvalPolicy: "untrusted",
+          },
+          "codex-custom": {
+            workingDirectory: "/repo/custom",
+            approvalPolicy: "never",
+          },
+        },
+      }),
+    );
+
+    expect(sdkMocks.resumeThread).toHaveBeenCalledWith("thread-existing-merge-1", {
+      sandboxMode: "workspace-write",
+      workingDirectory: "/repo/custom",
+      approvalPolicy: "never",
       model: "gpt-5",
     });
   });

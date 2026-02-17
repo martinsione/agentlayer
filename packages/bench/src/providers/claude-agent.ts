@@ -1,6 +1,6 @@
-import { createClaudeAgentSdk } from "@agent-layer/ai-sdk-claude-agent";
-import type { ClaudeAgentSdkModelSettings } from "@agent-layer/ai-sdk-claude-agent";
 import { generateText, streamText } from "ai";
+import { createClaudeAgentSdk } from "ai-sdk-claude-agent-provider";
+import type { ClaudeAgentSdkModelSettings } from "ai-sdk-claude-agent-provider";
 import type { BenchProvider, ProviderArgs } from "./types";
 
 type PermissionMode = NonNullable<ClaudeAgentSdkModelSettings["permissionMode"]>;

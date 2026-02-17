@@ -11,9 +11,9 @@
     "test": "bun test src/bench.parse.test.ts"
   },
   "dependencies": {
-    "@agent-layer/ai-sdk-claude-agent": "workspace:*",
-    "@agent-layer/ai-sdk-codex": "workspace:*",
-    "ai": "^6.0.87"
+    "ai": "^6.0.87",
+    "ai-sdk-claude-agent-provider": "workspace:*",
+    "ai-sdk-codex-provider": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "1.3.9",

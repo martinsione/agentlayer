@@ -10,8 +10,8 @@
         "turbo": "2.8.9",
       },
     },
-    "packages/ai-sdk-claude-agent": {
-      "name": "@agent-layer/ai-sdk-claude-agent",
+    "packages/ai-sdk-claude-agent-provider": {
+      "name": "ai-sdk-claude-agent-provider",
       "version": "0.0.0",
       "dependencies": {
         "@ai-sdk/provider": "^3.0.8",
@@ -25,8 +25,8 @@
         "vitest": "^4.0.18",
       },
     },
-    "packages/ai-sdk-codex": {
-      "name": "@agent-layer/ai-sdk-codex",
+    "packages/ai-sdk-codex-provider": {
+      "name": "ai-sdk-codex-provider",
       "version": "0.0.0",
       "dependencies": {
         "@ai-sdk/provider": "^3.0.8",
@@ -44,8 +44,8 @@
       "name": "@agent-layer/bench",
       "version": "0.0.0",
       "dependencies": {
-        "@agent-layer/ai-sdk-claude-agent": "workspace:*",
-        "@agent-layer/ai-sdk-codex": "workspace:*",
+        "ai-sdk-claude-agent-provider": "workspace:*",
+        "ai-sdk-codex-provider": "workspace:*",
         "ai": "^6.0.87",
       },
       "devDependencies": {
@@ -56,9 +56,9 @@
     },
   },
   "packages": {
-    "@agent-layer/ai-sdk-claude-agent": ["@agent-layer/ai-sdk-claude-agent@workspace:packages/ai-sdk-claude-agent"],
+    "ai-sdk-claude-agent-provider": ["ai-sdk-claude-agent-provider@workspace:packages/ai-sdk-claude-agent-provider"],
 
-    "@agent-layer/ai-sdk-codex": ["@agent-layer/ai-sdk-codex@workspace:packages/ai-sdk-codex"],
+    "ai-sdk-codex-provider": ["ai-sdk-codex-provider@workspace:packages/ai-sdk-codex-provider"],
 
     "@agent-layer/bench": ["@agent-layer/bench@workspace:packages/bench"],
 

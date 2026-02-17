@@ -1,5 +1,5 @@
-import { codexSdk } from "@agent-layer/ai-sdk-codex";
 import { streamText } from "ai";
+import { codexSdk } from "ai-sdk-codex-provider";
 
 const result = streamText({
   model: codexSdk("gpt-5.3-codex"),

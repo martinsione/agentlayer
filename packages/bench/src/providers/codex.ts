@@ -1,5 +1,5 @@
-import { createCodexSdk } from "@agent-layer/ai-sdk-codex";
 import { generateText, streamText } from "ai";
+import { createCodexSdk } from "ai-sdk-codex-provider";
 import type { BenchProvider, ProviderArgs } from "./types";
 
 type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";

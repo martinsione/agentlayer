@@ -55,8 +55,7 @@ export class ClaudeAgentSdkLanguageModel implements LanguageModelV3 {
     const callSettings = getCallSettings(options.providerOptions, this.provider);
     const warnings = [...promptWarnings, ...getUnsupportedWarnings(options)];
 
-    const outputSchema =
-      options.responseFormat?.type === "json" ? options.responseFormat.schema : undefined;
+    const outputSchema = resolveJsonOutputSchema(options.responseFormat);
 
     const { abortController, cleanup: cleanupAbortController } = createAbortController(
       options.abortSignal,
@@ -128,11 +127,11 @@ export class ClaudeAgentSdkLanguageModel implements LanguageModelV3 {
 
   async doStream(options: LanguageModelV3CallOptions): Promise<LanguageModelV3StreamResult> {
     const { prompt, warnings: promptWarnings } = mapPromptToClaudeAgentPrompt(options.prompt);
+    const includeRawChunks = options.includeRawChunks === true;
     const callSettings = getCallSettings(options.providerOptions, this.provider);
     const warnings = [...promptWarnings, ...getUnsupportedWarnings(options)];
 
-    const outputSchema =
-      options.responseFormat?.type === "json" ? options.responseFormat.schema : undefined;
+    const outputSchema = resolveJsonOutputSchema(options.responseFormat);
 
     const { abortController, cleanup: cleanupAbortController } = createAbortController(
       options.abortSignal,
@@ -186,6 +185,13 @@ export class ClaudeAgentSdkLanguageModel implements LanguageModelV3 {
 
         try {
           for await (const message of run) {
+            if (includeRawChunks) {
+              controller.enqueue({
+                type: "raw",
+                rawValue: message,
+              });
+            }
+
             sessionId ??= message.session_id;
             resolvedModelId ??= readResolvedModelId(message);
 
@@ -390,13 +396,6 @@ function getUnsupportedWarnings(options: LanguageModelV3CallOptions): SharedV3Wa
     );
   }
 
-  if (options.includeRawChunks) {
-    pushUnsupported(
-      "includeRawChunks",
-      "claude-agent-sdk provider does not surface raw provider chunks in AI SDK output.",
-    );
-  }
-
   if (hasHeaders(options.headers)) {
     pushUnsupported(
       "headers",
@@ -449,16 +448,6 @@ function getUnsupportedWarnings(options: LanguageModelV3CallOptions): SharedV3Wa
 
   if (options.seed != null) {
     pushUnsupported("seed", "claude-agent-sdk provider ignores seed in AI SDK call options.");
-  }
-
-  if (
-    options.responseFormat?.type === "json" &&
-    (options.responseFormat.name != null || options.responseFormat.description != null)
-  ) {
-    pushUnsupported(
-      "responseFormat.name/description",
-      "claude-agent-sdk provider only forwards responseFormat.schema as query outputFormat.",
-    );
   }
 
   return warnings;
@@ -838,4 +827,27 @@ function asError(error: unknown): Error {
   }
 
   return new Error(typeof error === "string" ? error : "Unknown stream error");
+}
+
+function resolveJsonOutputSchema(
+  responseFormat: LanguageModelV3CallOptions["responseFormat"],
+): unknown | undefined {
+  if (responseFormat?.type !== "json") {
+    return undefined;
+  }
+
+  const { schema } = responseFormat;
+  if (schema == null || typeof schema !== "object" || Array.isArray(schema)) {
+    return schema;
+  }
+
+  const resolvedSchema = { ...schema } as Record<string, unknown>;
+  if (responseFormat.name != null && resolvedSchema.title == null) {
+    resolvedSchema.title = responseFormat.name;
+  }
+  if (responseFormat.description != null && resolvedSchema.description == null) {
+    resolvedSchema.description = responseFormat.description;
+  }
+
+  return resolvedSchema;
 }

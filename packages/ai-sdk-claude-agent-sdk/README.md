@@ -83,6 +83,31 @@ To regenerate the static model id/info files from your current Claude Agent SDK 
 bun --cwd packages/ai-sdk-claude-agent-sdk run sync:model-catalog
 ```
 
+## Option Coverage
+
+Audited against `@anthropic-ai/claude-agent-sdk@0.2.45`.
+
+- `Options` support: all Claude Agent SDK `Options` fields are supported through the adapter, with four fields mapped from AI SDK primitives instead of direct passthrough:
+  - `prompt` comes from AI SDK prompt/messages.
+  - `model` comes from the selected model id (`claudeAgentSdk("<model-id>")`).
+  - `abortController` comes from AI SDK `abortSignal`.
+  - `outputFormat` comes from AI SDK JSON `responseFormat.schema` (mapped to `json_schema`; `responseFormat.name`/`description` map to schema `title`/`description` when missing).
+- Pass-through layers for all other Claude `Options` fields:
+  - Provider defaults: `createClaudeAgentSdk({ queryOptions: ... })`
+  - Model defaults: `claudeAgentSdk(modelId, modelSettings)`
+  - Per-call overrides: `providerOptions["<provider-name>"]`
+- Provider convenience aliases: `apiKey`, `authToken`, `baseURL`/`baseUrl`, and `env` are merged into Claude process env (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`).
+
+AI SDK call options currently not forwarded to Claude Agent SDK (warnings emitted):
+
+- `tools`, `toolChoice`
+- `headers`
+- `temperature`, `topP`, `topK`
+- `maxOutputTokens`
+- `stopSequences`
+- `presencePenalty`, `frequencyPenalty`
+- `seed`
+
 ## Documentation
 
 - AI SDK community custom provider guide: <https://ai-sdk.dev/providers/community-providers/custom-providers>

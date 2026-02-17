@@ -81,8 +81,7 @@ export class CodexSdkLanguageModel implements LanguageModelV3 {
         ? this.codex.resumeThread(callSettings.threadId, threadOptions)
         : this.codex.startThread(threadOptions);
 
-    const outputSchema =
-      options.responseFormat?.type === "json" ? options.responseFormat.schema : undefined;
+    const outputSchema = resolveJsonOutputSchema(options.responseFormat);
 
     const turn = await thread.run(input, makeTurnOptions(outputSchema, options.abortSignal));
 
@@ -120,8 +119,7 @@ export class CodexSdkLanguageModel implements LanguageModelV3 {
         ? this.codex.resumeThread(callSettings.threadId, threadOptions)
         : this.codex.startThread(threadOptions);
 
-    const outputSchema =
-      options.responseFormat?.type === "json" ? options.responseFormat.schema : undefined;
+    const outputSchema = resolveJsonOutputSchema(options.responseFormat);
 
     const streamed = await thread.runStreamed(
       input,
@@ -560,16 +558,6 @@ function getUnsupportedWarnings(
   if (options.seed != null) {
     pushUnsupported("seed", "codex-sdk provider ignores seed in AI SDK call options.");
   }
-  if (
-    options.responseFormat?.type === "json" &&
-    (options.responseFormat.name != null || options.responseFormat.description != null)
-  ) {
-    pushUnsupported(
-      "responseFormat.name/description",
-      "codex-sdk provider only forwards responseFormat.schema as Codex outputSchema.",
-    );
-  }
-
   const modelInfo = getCodexSdkModelInfo(modelId);
   const requestedReasoningEffort = threadOptions.modelReasoningEffort;
   if (
@@ -718,4 +706,27 @@ function makeTurnOptions(
     ...(outputSchema !== undefined ? { outputSchema } : {}),
     ...(signal !== undefined ? { signal } : {}),
   };
+}
+
+function resolveJsonOutputSchema(
+  responseFormat: LanguageModelV3CallOptions["responseFormat"],
+): unknown | undefined {
+  if (responseFormat?.type !== "json") {
+    return undefined;
+  }
+
+  const { schema } = responseFormat;
+  if (schema == null || typeof schema !== "object" || Array.isArray(schema)) {
+    return schema;
+  }
+
+  const resolvedSchema = { ...schema } as Record<string, unknown>;
+  if (responseFormat.name != null && resolvedSchema.title == null) {
+    resolvedSchema.title = responseFormat.name;
+  }
+  if (responseFormat.description != null && resolvedSchema.description == null) {
+    resolvedSchema.description = responseFormat.description;
+  }
+
+  return resolvedSchema;
 }

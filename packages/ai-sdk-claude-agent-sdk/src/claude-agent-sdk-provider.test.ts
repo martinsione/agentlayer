@@ -151,6 +151,17 @@ describe("createClaudeAgentSdk", () => {
             inputSchema: { type: "object", properties: {} },
           },
         ],
+        responseFormat: {
+          type: "json",
+          schema: {
+            type: "object",
+            properties: {
+              result: { type: "string" },
+            },
+          },
+          name: "result-shape",
+          description: "Result schema",
+        },
       }),
     );
 
@@ -159,6 +170,17 @@ describe("createClaudeAgentSdk", () => {
       options: expect.objectContaining({
         model: "default",
         cwd: "/repo/default",
+        outputFormat: {
+          type: "json_schema",
+          schema: {
+            type: "object",
+            properties: {
+              result: { type: "string" },
+            },
+            title: "result-shape",
+            description: "Result schema",
+          },
+        },
         env: expect.objectContaining({
           ANTHROPIC_API_KEY: "sk-ant-test",
           ANTHROPIC_BASE_URL: "https://anthropic.example.test",
@@ -335,6 +357,106 @@ describe("createClaudeAgentSdk", () => {
         },
       },
     });
+  });
+
+  it("emits raw stream chunks when includeRawChunks is enabled", async () => {
+    const messages = [
+      {
+        type: "assistant",
+        session_id: "session-stream-raw-1",
+        uuid: "assistant-raw-1",
+        parent_tool_use_id: null,
+        message: {
+          content: [{ type: "text", text: "raw hello" }],
+        },
+      },
+      {
+        type: "result",
+        subtype: "success",
+        session_id: "session-stream-raw-1",
+        uuid: "result-raw-1",
+        is_error: false,
+        result: "raw hello",
+        stop_reason: "end_turn",
+        total_cost_usd: 0,
+        num_turns: 1,
+        duration_ms: 5,
+        duration_api_ms: 5,
+        permission_denials: [],
+        modelUsage: {},
+        usage: {
+          input_tokens: 1,
+          output_tokens: 1,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
+      },
+    ] as const;
+
+    sdkMocks.query.mockReturnValue(createMockQuery([...messages]));
+
+    const provider = createClaudeAgentSdk();
+    const model = provider("default");
+
+    const streamResult = await model.doStream(
+      callOptions({
+        includeRawChunks: true,
+      }),
+    );
+    const parts = await collectStream(streamResult.stream);
+
+    expect(parts[0]).toEqual({ type: "stream-start", warnings: [] });
+
+    const rawParts = parts.filter((part) => part.type === "raw");
+    expect(rawParts).toEqual([
+      { type: "raw", rawValue: messages[0] },
+      { type: "raw", rawValue: messages[1] },
+    ]);
+  });
+
+  it("does not warn for includeRawChunks or responseFormat name/description", async () => {
+    sdkMocks.query.mockReturnValue(
+      createMockQuery([
+        {
+          type: "result",
+          subtype: "success",
+          session_id: "session-generate-warnings-1",
+          uuid: "result-generate-warnings-1",
+          is_error: false,
+          result: "ok",
+          stop_reason: "end_turn",
+          total_cost_usd: 0,
+          num_turns: 1,
+          duration_ms: 5,
+          duration_api_ms: 5,
+          permission_denials: [],
+          modelUsage: {},
+          usage: {
+            input_tokens: 1,
+            output_tokens: 1,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      ]),
+    );
+
+    const provider = createClaudeAgentSdk();
+    const model = provider("default");
+
+    const result = await model.doGenerate(
+      callOptions({
+        includeRawChunks: true,
+        responseFormat: {
+          type: "json",
+          schema: { type: "object", properties: {} },
+          name: "shape",
+          description: "shape description",
+        },
+      }),
+    );
+
+    expect(result.warnings).toEqual([]);
   });
 
   it("emits an error and error finish reason for failed result subtype", async () => {

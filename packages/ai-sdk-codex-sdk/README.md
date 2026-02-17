@@ -91,6 +91,32 @@ console.log(info?.contextWindow);
 - Set `includeRawChunks: true` in AI SDK call options to receive raw Codex `ThreadEvent` payloads in the stream.
 - Codex SDK authentication (ChatGPT account or API key) must already be configured in your environment.
 
+## Option Coverage
+
+Audited against `@openai/codex-sdk@0.101.0`.
+
+- `CodexOptions` support: `createCodexSdk(...)` forwards all current `CodexOptions` fields. `baseUrl` is supported via `baseURL` (preferred) and `baseUrl` (deprecated alias).
+- `ThreadOptions` support: supported at all adapter layers:
+  - Provider default: `createCodexSdk({ threadOptions: ... })`
+  - Model default: `codexSdk(modelId, modelSettings)`
+  - Per-call override: `providerOptions["<provider-name>"]`
+- Resume support: `providerOptions["<provider-name>"].threadId` maps to `codex.resumeThread(threadId, threadOptions)`.
+- Turn options support: AI SDK `abortSignal` maps to Codex `TurnOptions.signal`; AI SDK JSON response schema maps to Codex `TurnOptions.outputSchema` (`responseFormat.name`/`description` are mapped to schema `title`/`description` when missing).
+
+Not fully passthrough:
+
+- `ThreadOptions.model` is intentionally overridden by the AI SDK model id (`codexSdk("<model-id>")`) on every call.
+
+AI SDK call options currently not forwarded to Codex (warnings emitted):
+
+- `tools`, `toolChoice`
+- `headers`
+- `temperature`, `topP`, `topK`
+- `maxOutputTokens`
+- `stopSequences`
+- `presencePenalty`, `frequencyPenalty`
+- `seed`
+
 ## Documentation
 
 - AI SDK community custom provider guide: <https://ai-sdk.dev/providers/community-providers/custom-providers>

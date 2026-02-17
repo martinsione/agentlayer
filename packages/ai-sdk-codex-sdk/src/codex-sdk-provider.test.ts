@@ -745,6 +745,15 @@ describe("createCodexSdk", () => {
       }),
     );
 
+    expect(run).toHaveBeenCalledWith("[user]\nHello from test", {
+      outputSchema: {
+        type: "object",
+        properties: {},
+        title: "my-shape",
+        description: "shape",
+      },
+    });
+
     expect(result.warnings).toEqual([
       {
         type: "unsupported",
@@ -791,11 +800,6 @@ describe("createCodexSdk", () => {
         type: "unsupported",
         feature: "seed",
         details: "codex-sdk provider ignores seed in AI SDK call options.",
-      },
-      {
-        type: "unsupported",
-        feature: "responseFormat.name/description",
-        details: "codex-sdk provider only forwards responseFormat.schema as Codex outputSchema.",
       },
     ]);
   });

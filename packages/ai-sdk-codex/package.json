@@ -47,6 +47,7 @@
     "build": "bun run clean && tsup --tsconfig tsconfig.build.json",
     "build:watch": "bun run clean && tsup --watch",
     "clean": "rm -rf dist *.tsbuildinfo",
+    "prepublishOnly": "bun run sync:model-ids",
     "type-check": "tsc --build",
     "sync:model-catalog": "bun run scripts/sync-model-ids.ts",
     "sync:model-ids": "bun run scripts/sync-model-ids.ts",

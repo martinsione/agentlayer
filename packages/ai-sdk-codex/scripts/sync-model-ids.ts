@@ -97,8 +97,12 @@ async function main(): Promise<void> {
         `displayName: ${JSON.stringify(displayName)}`,
         ...(description != null ? [`description: ${JSON.stringify(description)}`] : []),
         ...(contextWindow != null ? [`contextWindow: ${contextWindow}`] : []),
-        `inputModalities: ${JSON.stringify(inputModalities.length > 0 ? inputModalities : ["text"])}`,
-        `supportedReasoningEfforts: ${JSON.stringify(supportedReasoningEfforts)}`,
+        `inputModalities: [${(inputModalities.length > 0 ? inputModalities : ["text"])
+          .map((value) => JSON.stringify(value))
+          .join(", ")}]`,
+        `supportedReasoningEfforts: [${supportedReasoningEfforts
+          .map((value) => JSON.stringify(value))
+          .join(", ")}]`,
         ...(defaultReasoningEffort != null
           ? [`defaultReasoningEffort: ${JSON.stringify(defaultReasoningEffort)}`]
           : []),
@@ -106,7 +110,11 @@ async function main(): Promise<void> {
         `supportedInApi: ${JSON.stringify(supportedInApi)}`,
       ];
 
-      return `  ${JSON.stringify(modelId)}: { ${fields.join(", ")} },`;
+      return [
+        `  ${JSON.stringify(modelId)}: {`,
+        ...fields.map((field) => `    ${field},`),
+        "  },",
+      ].join("\n");
     }),
     "} as const satisfies Record<string, CodexSdkModelInfo>;",
     "",

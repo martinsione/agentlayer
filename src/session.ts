@@ -1,4 +1,5 @@
 import type { ModelMessage } from "@ai-sdk/provider-utils";
+import type { LanguageModel } from "ai";
 import { loop, type LoopConfig } from "./loop";
 import type {
   MessageEntry,
@@ -10,6 +11,7 @@ import type {
   HookEvent,
   HookEventMap,
   HookListener,
+  Tool,
 } from "./types";
 
 type Listener<T> = (event: T) => unknown | Promise<unknown>;
@@ -123,6 +125,30 @@ export class Session {
 
   get status(): SessionStatus {
     return this.completion ? "busy" : "idle";
+  }
+
+  get model(): LanguageModel {
+    return this.config.model;
+  }
+
+  set model(model: LanguageModel) {
+    this.config.model = model;
+  }
+
+  get tools(): Tool[] {
+    return this.config.tools;
+  }
+
+  set tools(tools: Tool[]) {
+    this.config.tools = tools;
+  }
+
+  get systemPrompt(): string | undefined {
+    return this.config.systemPrompt;
+  }
+
+  set systemPrompt(prompt: string | undefined) {
+    this.config.systemPrompt = prompt;
   }
 
   abort(): void {

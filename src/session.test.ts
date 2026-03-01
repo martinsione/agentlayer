@@ -12,6 +12,7 @@ import {
   createMockModel,
   createSlowTool,
   createTestAgent,
+  userMessage,
 } from "./test/helpers";
 import { BashTool } from "./tools/bash";
 import type {
@@ -23,6 +24,7 @@ import type {
   StatusEvent,
   StepStartEvent,
   StepEndEvent,
+  Tool,
 } from "./types";
 
 describe("Session.send", () => {
@@ -1035,5 +1037,190 @@ describe("buildContext", () => {
     session.send("Hello");
     await session.waitForIdle();
     expect(session.leafEntryId).toBeTruthy();
+  });
+});
+
+describe("Session dynamic config (model, tools, systemPrompt)", () => {
+  test("changing model between turns uses the new model on the next send", async () => {
+    const model1 = createMockModel([{ text: "From model 1" }]);
+    const model2 = createMockModel([{ text: "From model 2" }]);
+
+    const agent = new Agent({
+      model: model1,
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+    });
+    const session = await agent.createSession();
+
+    // First turn uses model1
+    session.send("Hello");
+    await session.waitForIdle();
+    expect(model1.doStreamCalls).toHaveLength(1);
+    expect(model2.doStreamCalls).toHaveLength(0);
+
+    // Switch model between turns
+    session.model = model2;
+
+    // Second turn uses model2
+    session.send("Hello again");
+    await session.waitForIdle();
+    expect(model1.doStreamCalls).toHaveLength(1); // still 1
+    expect(model2.doStreamCalls).toHaveLength(1); // now 1
+  });
+
+  test("model getter returns the current model", async () => {
+    const model1 = createMockModel([{ text: "Hi" }]);
+    const model2 = createMockModel([{ text: "Hi" }]);
+
+    const agent = new Agent({
+      model: model1,
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+    });
+    const session = await agent.createSession();
+
+    expect(session.model).toBe(model1);
+    session.model = model2;
+    expect(session.model).toBe(model2);
+  });
+
+  test("changing tools between turns provides the new tools to the next model call", async () => {
+    const toolA: Tool = {
+      name: "tool_a",
+      description: "Tool A",
+      parameters: { type: "object", properties: {} },
+      execute: async () => "a result",
+    };
+    const toolB: Tool = {
+      name: "tool_b",
+      description: "Tool B",
+      parameters: { type: "object", properties: {} },
+      execute: async () => "b result",
+    };
+
+    const { agent, model } = createTestAgent(
+      [
+        { toolCalls: [{ id: "c1", name: "tool_a", input: {} }] },
+        { text: "Done with A" },
+        { toolCalls: [{ id: "c2", name: "tool_b", input: {} }] },
+        { text: "Done with B" },
+      ],
+      { tools: [toolA] },
+    );
+    const session = await agent.createSession();
+
+    // First turn uses toolA
+    session.send("Use tool A");
+    await session.waitForIdle();
+
+    // Switch tools between turns
+    session.tools = [toolB];
+
+    // Second turn uses toolB
+    session.send("Use tool B");
+    await session.waitForIdle();
+
+    // Verify the second turn's first model call received the updated tools.
+    // doStreamCalls is 0-indexed. Turn 1 has 2 model calls (tool call + text),
+    // so turn 2's first call is at index 2.
+    const secondTurnFirstCall = model.doStreamCalls[2]; // turn2, step1
+    expect(secondTurnFirstCall).toBeDefined();
+    const toolNames = (secondTurnFirstCall!.tools ?? []).map((t: { name: string }) => t.name);
+    expect(toolNames).toContain("tool_b");
+    expect(toolNames).not.toContain("tool_a");
+  });
+
+  test("tools getter returns the current tools", async () => {
+    const toolA: Tool = {
+      name: "tool_a",
+      description: "Tool A",
+      parameters: { type: "object", properties: {} },
+      execute: async () => "a result",
+    };
+
+    const { agent } = createTestAgent([{ text: "Hi" }], { tools: [toolA] });
+    const session = await agent.createSession();
+
+    expect(session.tools).toHaveLength(1);
+    expect(session.tools[0]!.name).toBe("tool_a");
+
+    session.tools = [];
+    expect(session.tools).toHaveLength(0);
+  });
+
+  test("changing systemPrompt between turns sends the new prompt", async () => {
+    const { agent, model } = createTestAgent([{ text: "Reply 1" }, { text: "Reply 2" }]);
+    const session = await agent.createSession();
+
+    // First turn — no system prompt by default from createTestAgent
+    session.send("Hello");
+    await session.waitForIdle();
+
+    // Switch system prompt between turns
+    session.systemPrompt = "You are a helpful pirate.";
+
+    // Second turn
+    session.send("Hello again");
+    await session.waitForIdle();
+
+    // Verify the second model call received the new system prompt.
+    // In V3, the system prompt is embedded as the first message in the prompt array.
+    const secondCall = model.doStreamCalls[1];
+    expect(secondCall).toBeDefined();
+    const systemMsg = secondCall!.prompt.find((m: { role: string }) => m.role === "system");
+    expect(systemMsg).toBeDefined();
+    expect((systemMsg as { role: "system"; content: string }).content).toBe(
+      "You are a helpful pirate.",
+    );
+  });
+
+  test("systemPrompt getter returns the current system prompt", async () => {
+    const { agent } = createTestAgent([{ text: "Hi" }]);
+    const session = await agent.createSession();
+
+    expect(session.systemPrompt).toBeUndefined();
+
+    session.systemPrompt = "New prompt";
+    expect(session.systemPrompt).toBe("New prompt");
+
+    session.systemPrompt = undefined;
+    expect(session.systemPrompt).toBeUndefined();
+  });
+
+  test("changes during an active turn take effect on the next turn, not the current one", async () => {
+    const model1 = createMockModel([
+      { toolCalls: [{ id: "c1", name: "slow", input: {} }] },
+      { text: "From model 1" },
+    ]);
+    const model2 = createMockModel([{ text: "From model 2" }]);
+
+    const agent = new Agent({
+      model: model1,
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+      tools: [createSlowTool()],
+    });
+    const session = await agent.createSession();
+
+    // Start a turn
+    session.send("Go");
+
+    // While the turn is running, switch the model
+    await new Promise((r) => setTimeout(r, 10));
+    expect(session.status).toBe("busy");
+    session.model = model2;
+
+    // Wait for the current turn to finish — it should use model1
+    await session.waitForIdle();
+
+    // model1 handled the current turn (two model calls: tool call + final text)
+    expect(model1.doStreamCalls).toHaveLength(2);
+    // model2 was not used during the active turn
+    expect(model2.doStreamCalls).toHaveLength(0);
+
+    // Now a new turn should use model2
+    session.send("Next turn");
+    await session.waitForIdle();
+    expect(model2.doStreamCalls).toHaveLength(1);
   });
 });

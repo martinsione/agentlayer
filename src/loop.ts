@@ -42,6 +42,7 @@ export type LoopConfig = {
   getFollowUpMessages?: () => ModelMessage[];
   thinkingLevel?: ThinkingLevel;
   thinkingBudgets?: ThinkingBudgets;
+  providerOptions?: Record<string, unknown>;
   transformContext?: (messages: ModelMessage[]) => ModelMessage[] | Promise<ModelMessage[]>;
 };
 
@@ -163,6 +164,7 @@ export async function* loop(
     getFollowUpMessages,
     thinkingLevel,
     thinkingBudgets,
+    providerOptions,
     transformContext,
   } = config;
 
@@ -200,6 +202,16 @@ export async function* loop(
     const budget = getThinkingBudget(thinkingLevel, thinkingBudgets);
     const contextMessages = transformContext ? await transformContext([...msgs]) : msgs;
 
+    const mergedProviderOptions = {
+      ...providerOptions,
+      ...(budget !== undefined && {
+        anthropic: {
+          ...(providerOptions?.anthropic as Record<string, unknown> | undefined),
+          thinking: { type: "enabled", budgetTokens: budget },
+        },
+      }),
+    };
+
     const result = streamText({
       model,
       system,
@@ -207,10 +219,8 @@ export async function* loop(
       tools: currentToolDefs as Parameters<typeof streamText>[0]["tools"],
       stopWhen: stepCountIs(1),
       abortSignal: signal,
-      ...(budget !== undefined && {
-        providerOptions: {
-          anthropic: { thinking: { type: "enabled", budgetTokens: budget } },
-        },
+      ...(Object.keys(mergedProviderOptions).length > 0 && {
+        providerOptions: mergedProviderOptions,
       }),
     });
 

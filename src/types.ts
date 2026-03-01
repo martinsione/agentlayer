@@ -263,6 +263,12 @@ export type AgentOptions = {
   hooks?: AgentHooks;
   thinkingLevel?: ThinkingLevel;
   thinkingBudgets?: ThinkingBudgets;
-  /** Transform the message context before each model call (e.g. pruning, compaction). */
+  /** Extra provider options passed to streamText (e.g. Anthropic thinking, OpenAI seed). */
+  providerOptions?: Record<string, unknown>;
+  /**
+   * Transform the message context before each model call (e.g. pruning, compaction).
+   * Receives a shallow copy of the message array. Do not mutate individual messages —
+   * return new message objects if modification is needed.
+   */
   transformContext?: (messages: ModelMessage[]) => ModelMessage[] | Promise<ModelMessage[]>;
 };

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import type { Tool, ToolContext } from "./types";
 
 type ZodObjectSchema = z.ZodObject<z.core.$ZodLooseShape>;
@@ -12,7 +12,7 @@ type ZodObjectSchema = z.ZodObject<z.core.$ZodLooseShape>;
  *
  * @example
  * ```ts
- * import { z } from "zod";
+ * import { z } from "zod/v4";
  * import { defineTool } from "agentlayer/define-tool";
  *
  * const greet = defineTool({

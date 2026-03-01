@@ -8,7 +8,7 @@
 import type { LanguageModel } from "ai";
 import { z } from "zod/v4";
 import { loop } from "../loop";
-import type { LoopEvent, ModelMessage, Tool, ToolContext } from "../types";
+import type { ModelMessage, Tool, ToolContext } from "../types";
 
 const taskSchema = z.object({
   prompt: z.string().describe("The task to perform"),
@@ -51,9 +51,6 @@ export function createTaskTool(config: TaskToolConfig): Tool {
         { model, tools, runtime: ctx.runtime, maxSteps, systemPrompt },
         ctx.signal,
       )) {
-        if (event.type === "text-delta") {
-          // Accumulate text deltas for the final response
-        }
         if (event.type === "message" && event.message.role === "assistant") {
           // Extract the text content from the assistant message
           const msg = event.message;

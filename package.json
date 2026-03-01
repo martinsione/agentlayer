@@ -1,7 +1,6 @@
 {
   "name": "agentlayer",
   "version": "0.0.1",
-  "private": true,
   "license": "MIT",
   "files": [
     "dist"
@@ -65,7 +64,8 @@
   },
   "scripts": {
     "prepare": "git config --local core.hooksPath .githooks",
-    "build": "tsc -b",
+    "build": "tsup",
+    "prepublishOnly": "npm run build",
     "format": "oxfmt",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
@@ -80,6 +80,7 @@
     "@vercel/sandbox": "^1.7.1",
     "just-bash": "^2.11.5",
     "oxfmt": "^0.35.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "zod": "^4.3.6"
   },

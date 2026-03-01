@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    /* Base Options */
     "esModuleInterop": true,
     "skipLibCheck": true,
     "target": "es2022",
@@ -10,17 +9,15 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
 
-    /* Strictness */
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
 
-    /* Not transpiling with TypeScript */
-    "module": "preserve",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "noEmit": true,
 
-    /* No DOM */
     "lib": ["es2022"]
   },
-  "include": ["**/*.ts"]
+  "include": ["src/**/*.ts"]
 }

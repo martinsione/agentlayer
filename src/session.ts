@@ -12,6 +12,8 @@ import type {
   HookEventMap,
   HookListener,
   Tool,
+  ThinkingLevel,
+  ThinkingBudgets,
 } from "./types";
 
 type Listener<T> = (event: T) => unknown | Promise<unknown>;
@@ -149,6 +151,22 @@ export class Session {
 
   set systemPrompt(prompt: string | undefined) {
     this.config.systemPrompt = prompt;
+  }
+
+  get thinkingLevel(): ThinkingLevel | undefined {
+    return this.config.thinkingLevel;
+  }
+
+  set thinkingLevel(level: ThinkingLevel | undefined) {
+    this.config.thinkingLevel = level;
+  }
+
+  get thinkingBudgets(): ThinkingBudgets | undefined {
+    return this.config.thinkingBudgets;
+  }
+
+  set thinkingBudgets(budgets: ThinkingBudgets | undefined) {
+    this.config.thinkingBudgets = budgets;
   }
 
   abort(): void {

@@ -59,4 +59,7 @@ export type {
   HookEvent,
   HookListener,
   AgentHooks,
+  // Thinking
+  ThinkingLevel,
+  ThinkingBudgets,
 } from "./types";

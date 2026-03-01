@@ -21,6 +21,8 @@ export class Agent {
       runtime: config.runtime ?? new NodeRuntime(),
       store: config.store ?? new InMemorySessionStore(),
       maxSteps: config.maxSteps ?? DEFAULT_MAX_STEPS,
+      thinkingLevel: config.thinkingLevel,
+      thinkingBudgets: config.thinkingBudgets,
     };
   }
 

@@ -15,6 +15,8 @@ import type {
   AfterToolCallDecision,
   BeforeModelCallEvent,
   BeforeModelCallDecision,
+  ThinkingLevel,
+  ThinkingBudgets,
 } from "./types";
 
 const STREAM_EVENTS: Set<string> = new Set(STREAM_EVENT_TYPES);
@@ -35,7 +37,24 @@ export type LoopConfig = {
   onToolProgress?: (event: ToolProgressEvent) => void;
   getSteeringMessages?: () => ModelMessage[];
   getFollowUpMessages?: () => ModelMessage[];
+  thinkingLevel?: ThinkingLevel;
+  thinkingBudgets?: ThinkingBudgets;
 };
+
+const DEFAULT_THINKING_BUDGETS: Required<ThinkingBudgets> = {
+  minimal: 1024,
+  low: 4096,
+  medium: 10000,
+  high: 32000,
+};
+
+function getThinkingBudget(
+  level: ThinkingLevel | undefined,
+  custom?: ThinkingBudgets,
+): number | undefined {
+  if (!level || level === "off") return undefined;
+  return custom?.[level] ?? DEFAULT_THINKING_BUDGETS[level];
+}
 
 function buildToolDefs(
   tools: Tool[],
@@ -166,6 +185,8 @@ export async function* loop(
       }
     }
 
+    const budget = getThinkingBudget(config.thinkingLevel, config.thinkingBudgets);
+
     const result = streamText({
       model,
       system,
@@ -173,6 +194,11 @@ export async function* loop(
       tools: currentToolDefs as Parameters<typeof streamText>[0]["tools"],
       stopWhen: stepCountIs(1),
       abortSignal: signal,
+      ...(budget !== undefined && {
+        providerOptions: {
+          anthropic: { thinking: { type: "enabled", budgetTokens: budget } },
+        },
+      }),
     });
 
     let hasToolCalls = false;

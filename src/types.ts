@@ -224,6 +224,15 @@ export type LoopEvent =
 // Send mode
 export type SendMode = "steer" | "queue";
 
+// Thinking / reasoning budgets
+export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high";
+export type ThinkingBudgets = {
+  minimal?: number;
+  low?: number;
+  medium?: number;
+  high?: number;
+};
+
 // Options
 export type SessionOptions = { sendMode?: SendMode };
 export type AgentOptions = {
@@ -235,4 +244,6 @@ export type AgentOptions = {
   maxSteps?: number; // default: 100
   sendMode?: SendMode;
   hooks?: AgentHooks;
+  thinkingLevel?: ThinkingLevel;
+  thinkingBudgets?: ThinkingBudgets;
 };

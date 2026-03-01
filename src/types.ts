@@ -28,10 +28,30 @@ export interface Tool {
   execute(input: Record<string, unknown>, ctx: ToolContext): Promise<string>;
 }
 
+// Session entries — tree-based model with id/parentId on every entry
+export type SessionEntryBase = {
+  id: string;
+  parentId: string | null;
+  timestamp: number;
+};
+
+export type MessageEntry = SessionEntryBase & {
+  type: "message";
+  message: ModelMessage;
+};
+
+export type CompactionEntry = SessionEntryBase & {
+  type: "compaction";
+  summary: string;
+  firstKeptId: string;
+};
+
+export type SessionEntry = MessageEntry | CompactionEntry;
+
 // Store
 export interface SessionStore {
-  load(sessionId: string): Promise<ModelMessage[]>;
-  append(sessionId: string, message: ModelMessage): Promise<void>;
+  load(sessionId: string): Promise<SessionEntry[]>;
+  append(sessionId: string, entry: SessionEntry): Promise<void>;
   exists(sessionId: string): Promise<boolean>;
 }
 

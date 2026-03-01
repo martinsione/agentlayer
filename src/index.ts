@@ -1,5 +1,5 @@
 export { Agent } from "./agent";
-export { Session } from "./session";
+export { Session, buildContext } from "./session";
 export { loop } from "./loop";
 export type { LoopConfig } from "./loop";
 export type {
@@ -15,6 +15,11 @@ export type {
   AgentOptions,
   SessionOptions,
   SendMode,
+  // Session entry types
+  SessionEntryBase,
+  MessageEntry,
+  CompactionEntry,
+  SessionEntry,
   // Event types
   TextDeltaEvent,
   MessageEvent,

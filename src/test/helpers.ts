@@ -6,7 +6,7 @@ import { Agent } from "../agent";
 import { loop, type LoopConfig } from "../loop";
 import { JustBashRuntime } from "../runtime/just-bash";
 import { InMemorySessionStore } from "../store/memory";
-import type { LoopEvent, SendMode, Tool } from "../types";
+import type { LoopEvent, SendMode, SessionEntry, SessionStore, Tool } from "../types";
 
 type MockToolCall = { id: string; name: string; input: Record<string, unknown> };
 
@@ -77,7 +77,7 @@ export function createFailingModel(message = "model crashed") {
 
 export function createTestAgent(
   responses: MockResponse[],
-  opts?: { store?: InMemorySessionStore; tools?: Tool[]; sendMode?: SendMode },
+  opts?: { store?: SessionStore; tools?: Tool[]; sendMode?: SendMode },
 ) {
   const model = createMockModel(responses);
   const agent = new Agent({
@@ -88,6 +88,17 @@ export function createTestAgent(
     sendMode: opts?.sendMode,
   });
   return { agent, model };
+}
+
+export function makeEntry(overrides?: Partial<SessionEntry>): SessionEntry {
+  return {
+    type: "message",
+    id: crypto.randomUUID(),
+    parentId: null,
+    timestamp: Date.now(),
+    message: { role: "user", content: [{ type: "text", text: "hello" }] },
+    ...overrides,
+  } as SessionEntry;
 }
 
 export function userMessage(text: string): ModelMessage {

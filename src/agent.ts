@@ -24,16 +24,25 @@ export class Agent {
   async createSession(opts?: SessionOptions & { id?: string }): Promise<Session> {
     const sessionId = opts?.id ?? crypto.randomUUID();
     const sendMode = opts?.sendMode ?? this.defaultSendMode;
-    return new Session(sessionId, [], { ...this.config, sendMode });
+    return new Session({
+      id: sessionId,
+      entries: [],
+      leafId: null,
+      config: { ...this.config, sendMode },
+    });
   }
 
-  async resumeSession(id: string, opts?: SessionOptions): Promise<Session> {
+  async resumeSession(id: string, opts?: SessionOptions & { leafId?: string }): Promise<Session> {
     const { store } = this.config;
-    const messages = await store.load(id);
-    if (messages.length === 0 && !(await store.exists(id))) {
+    const entries = await store.load(id);
+    if (entries.length === 0 && !(await store.exists(id))) {
       throw new Error(`Session not found: ${id}`);
     }
     const sendMode = opts?.sendMode ?? this.defaultSendMode;
-    return new Session(id, messages, { ...this.config, sendMode });
+    const leafId = opts?.leafId ?? (entries.length > 0 ? entries[entries.length - 1]!.id : null);
+    if (opts?.leafId && !entries.some((e) => e.id === opts.leafId)) {
+      throw new Error(`Entry not found: ${opts.leafId}`);
+    }
+    return new Session({ id, entries, leafId, config: { ...this.config, sendMode } });
   }
 }

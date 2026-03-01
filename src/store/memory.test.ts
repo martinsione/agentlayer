@@ -1,39 +1,39 @@
 import { describe, expect, test } from "bun:test";
-import type { ModelMessage } from "@ai-sdk/provider-utils";
+import { makeEntry } from "../test/helpers";
 import { InMemorySessionStore } from "./memory";
 
 describe("InMemorySessionStore", () => {
   test("load returns empty array for unknown session", async () => {
     const store = new InMemorySessionStore();
-    const messages = await store.load("nonexistent");
-    expect(messages).toEqual([]);
+    const entries = await store.load("nonexistent");
+    expect(entries).toEqual([]);
   });
 
   test("append + load round-trip", async () => {
     const store = new InMemorySessionStore();
-    const msg: ModelMessage = { role: "user", content: [{ type: "text", text: "hello" }] };
-    await store.append("s1", msg);
+    const entry = makeEntry();
+    await store.append("s1", entry);
     const loaded = await store.load("s1");
-    expect(loaded).toEqual([msg]);
+    expect(loaded).toEqual([entry]);
   });
 
   test("exists returns false for unknown, true after append", async () => {
     const store = new InMemorySessionStore();
     expect(await store.exists("s1")).toBe(false);
-    await store.append("s1", { role: "user", content: [{ type: "text", text: "hi" }] });
+    await store.append("s1", makeEntry());
     expect(await store.exists("s1")).toBe(true);
   });
 
   test("load returns a copy — mutations do not affect the store", async () => {
     const store = new InMemorySessionStore();
-    const msg: ModelMessage = { role: "user", content: [{ type: "text", text: "hello" }] };
-    await store.append("s1", msg);
+    const entry = makeEntry();
+    await store.append("s1", entry);
 
     const first = await store.load("s1");
-    first.push({ role: "assistant", content: [{ type: "text", text: "injected" }] });
+    first.push(makeEntry());
 
     const second = await store.load("s1");
     expect(second).toHaveLength(1);
-    expect(second).toEqual([msg]);
+    expect(second).toEqual([entry]);
   });
 });

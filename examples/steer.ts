@@ -7,6 +7,7 @@
 
 import { Agent } from "agentlayer";
 import { BashTool } from "agentlayer/tools/bash";
+import { attachLogger } from "./_log";
 
 const agent = new Agent({
   model: "moonshotai/kimi-k2.5",
@@ -16,10 +17,7 @@ const agent = new Agent({
 
 const session = await agent.createSession();
 
-session.on("text-delta", (e) => void process.stdout.write(e.text));
-session.on("before-tool-call", (e) => console.log(`\n> ${e.toolName}(${JSON.stringify(e.input)})`));
-session.on("tool-result", (e) => console.log(`[ok] ${String(e.output).slice(0, 120)}`));
-session.on("tool-error", (e) => console.log(`[error] ${String(e.error).slice(0, 120)}`));
+attachLogger(session);
 session.on("turn-end", () => console.log("\n--- turn end ---\n"));
 
 // Start a slow task

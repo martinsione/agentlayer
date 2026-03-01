@@ -277,7 +277,7 @@ export async function* loop(
 
       // before-stop hook can prevent the loop from ending
       if (hooks?.beforeStop) {
-        const decision = await hooks.beforeStop({ messages: msgs });
+        const decision = await hooks.beforeStop({ messages: [...msgs] });
         if (decision && "preventStop" in decision && decision.preventStop) {
           continue;
         }

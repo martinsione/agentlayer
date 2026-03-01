@@ -18,13 +18,14 @@ const schema = z.object({
   cwd: z.string().optional().describe("Directory to search in (defaults to working directory)"),
 });
 
-export function createGlobTool(cwd: string): Tool {
+export function createGlobTool(cwd?: string): Tool {
   return defineTool({
     name: "glob",
     description: `Find files matching a glob pattern. Returns one file path per line, limited to ${MAX_RESULTS} results. Paths are relative to the search directory.`,
     schema,
-    execute: async (input) => {
-      const searchDir = input.cwd ? resolve(cwd, input.cwd) : cwd;
+    execute: async (input, ctx) => {
+      const baseCwd = cwd ?? ctx.runtime.cwd;
+      const searchDir = input.cwd ? resolve(baseCwd, input.cwd) : baseCwd;
       const results: string[] = [];
 
       for await (const entry of glob(input.pattern, { cwd: searchDir })) {
@@ -45,5 +46,5 @@ export function createGlobTool(cwd: string): Tool {
   });
 }
 
-/** Default glob tool using process.cwd(). */
-export const GlobTool = createGlobTool(process.cwd());
+/** Default glob tool. Uses ctx.runtime.cwd at execution time. */
+export const GlobTool = createGlobTool();

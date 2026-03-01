@@ -15,14 +15,14 @@ const schema = z.object({
   content: z.string().describe("Content to write to the file"),
 });
 
-export function createWriteTool(cwd: string): Tool {
+export function createWriteTool(cwd?: string): Tool {
   return defineTool({
     name: "write",
     description:
       "Write content to a file. Creates the file if it does not exist, and creates parent directories as needed. Provide an absolute path or a path relative to the working directory.",
     schema,
     execute: async (input, ctx) => {
-      const filePath = resolve(cwd, input.path);
+      const filePath = resolve(cwd ?? ctx.runtime.cwd, input.path);
       await ctx.runtime.writeFile(filePath, input.content);
       const bytes = Buffer.byteLength(input.content, "utf-8");
       return `Wrote ${bytes} bytes to ${filePath}`;
@@ -30,5 +30,5 @@ export function createWriteTool(cwd: string): Tool {
   });
 }
 
-/** Default write tool using process.cwd(). */
-export const WriteTool = createWriteTool(process.cwd());
+/** Default write tool. Uses ctx.runtime.cwd at execution time. */
+export const WriteTool = createWriteTool();

@@ -21,14 +21,15 @@ const schema = z.object({
   glob: z.string().optional().describe("File pattern filter (e.g. *.ts)"),
 });
 
-export function createGrepTool(cwd: string): Tool {
+export function createGrepTool(cwd?: string): Tool {
   return defineTool({
     name: "grep",
     description:
       "Search file contents for a regex pattern using grep -rn. Returns matched lines with file:line prefix, truncated to 50KB.",
     schema,
     execute: async (input, ctx) => {
-      const searchPath = input.path ? resolve(cwd, input.path) : cwd;
+      const baseCwd = cwd ?? ctx.runtime.cwd;
+      const searchPath = input.path ? resolve(baseCwd, input.path) : baseCwd;
 
       // Build the grep command
       const args: string[] = ["-rn"];
@@ -41,7 +42,7 @@ export function createGrepTool(cwd: string): Tool {
       const command = `grep ${args.join(" ")}`;
 
       try {
-        const result = await ctx.runtime.exec(command, { cwd });
+        const result = await ctx.runtime.exec(command, { cwd: baseCwd });
         const output = result.stdout;
 
         if (!output.trim()) {
@@ -73,5 +74,5 @@ export function createGrepTool(cwd: string): Tool {
   });
 }
 
-/** Default grep tool using process.cwd(). */
-export const GrepTool = createGrepTool(process.cwd());
+/** Default grep tool. Uses ctx.runtime.cwd at execution time. */
+export const GrepTool = createGrepTool();

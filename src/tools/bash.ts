@@ -48,7 +48,7 @@ function getTempFilePath(): string {
  * Delegates execution to `ctx.runtime.exec()` with streaming output via `onData`.
  * Output is tail-truncated; if truncated, full output is saved to a temp file.
  */
-export function createBashTool(cwd: string, options?: BashToolOptions): Tool {
+export function createBashTool(cwd?: string, options?: BashToolOptions): Tool {
   const commandPrefix = options?.commandPrefix;
 
   return {
@@ -57,6 +57,7 @@ export function createBashTool(cwd: string, options?: BashToolOptions): Tool {
     parameters: z.toJSONSchema(bashSchema, { target: "draft-7" }) as Record<string, unknown>,
     execute: async (input: Record<string, unknown>, ctx: ToolContext): Promise<string> => {
       const { command, timeout } = bashSchema.parse(input);
+      const resolvedCwd = cwd ?? ctx.runtime.cwd;
       const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
 
       let tempFilePath: string | undefined;
@@ -93,7 +94,7 @@ export function createBashTool(cwd: string, options?: BashToolOptions): Tool {
 
       try {
         const result = await ctx.runtime.exec(resolvedCommand, {
-          cwd,
+          cwd: resolvedCwd,
           timeout,
           signal: ctx.signal,
           onData: handleData,
@@ -153,5 +154,5 @@ export function createBashTool(cwd: string, options?: BashToolOptions): Tool {
   };
 }
 
-/** Default bash tool using process.cwd(). */
-export const BashTool = createBashTool(process.cwd());
+/** Default bash tool. Uses ctx.runtime.cwd at execution time. */
+export const BashTool = createBashTool();

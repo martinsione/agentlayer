@@ -16,14 +16,14 @@ const schema = z.object({
   path: z.string().describe("File path (absolute or relative to cwd)"),
 });
 
-export function createReadTool(cwd: string): Tool {
+export function createReadTool(cwd?: string): Tool {
   return defineTool({
     name: "read",
     description:
       "Read the contents of a file. Output is truncated to 100KB. Provide an absolute path or a path relative to the working directory.",
     schema,
     execute: async (input, ctx) => {
-      const filePath = resolve(cwd, input.path);
+      const filePath = resolve(cwd ?? ctx.runtime.cwd, input.path);
       const content = await ctx.runtime.readFile(filePath);
       const bytes = Buffer.byteLength(content, "utf-8");
 
@@ -37,5 +37,5 @@ export function createReadTool(cwd: string): Tool {
   });
 }
 
-/** Default read tool using process.cwd(). */
-export const ReadTool = createReadTool(process.cwd());
+/** Default read tool. Uses ctx.runtime.cwd at execution time. */
+export const ReadTool = createReadTool();

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { NodeRuntime } from "../runtime/node";
-import { BashTool } from "./bash";
+import type { Runtime, ExecResult, ExecOptions } from "../types";
+import { BashTool, createBashTool } from "./bash";
 
 const ctx = { runtime: new NodeRuntime() };
 
@@ -30,5 +31,42 @@ describe("BashTool", () => {
     expect(BashTool.execute({ command: "sleep 10", timeout: 1 }, ctx)).rejects.toThrow(
       "Command timed out after 1 seconds",
     );
+  });
+
+  test("default BashTool uses ctx.runtime.cwd, not process.cwd()", async () => {
+    let capturedCwd: string | undefined;
+    const mockRuntime: Runtime = {
+      cwd: "/mock/sandbox/dir",
+      async exec(_cmd: string, opts?: ExecOptions): Promise<ExecResult> {
+        capturedCwd = opts?.cwd;
+        return { stdout: "ok", stderr: "", exitCode: 0 };
+      },
+      async readFile() {
+        return "";
+      },
+      async writeFile() {},
+    };
+
+    await BashTool.execute({ command: "echo hi" }, { runtime: mockRuntime });
+    expect(capturedCwd).toBe("/mock/sandbox/dir");
+  });
+
+  test("createBashTool with explicit cwd overrides runtime.cwd", async () => {
+    let capturedCwd: string | undefined;
+    const mockRuntime: Runtime = {
+      cwd: "/mock/sandbox/dir",
+      async exec(_cmd: string, opts?: ExecOptions): Promise<ExecResult> {
+        capturedCwd = opts?.cwd;
+        return { stdout: "ok", stderr: "", exitCode: 0 };
+      },
+      async readFile() {
+        return "";
+      },
+      async writeFile() {},
+    };
+
+    const tool = createBashTool("/explicit/dir");
+    await tool.execute({ command: "echo hi" }, { runtime: mockRuntime });
+    expect(capturedCwd).toBe("/explicit/dir");
   });
 });

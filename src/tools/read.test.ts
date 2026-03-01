@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NodeRuntime } from "../runtime/node";
-import { createReadTool } from "./read";
+import { createReadTool, ReadTool } from "./read";
 
 let tmpDir: string;
 let tool: ReturnType<typeof createReadTool>;
@@ -43,5 +43,12 @@ describe("ReadTool", () => {
 
   test("throws on non-existent file", async () => {
     expect(tool.execute({ path: "nonexistent.txt" }, ctx)).rejects.toThrow();
+  });
+
+  test("default ReadTool resolves paths against ctx.runtime.cwd", async () => {
+    await writeFile(join(tmpDir, "runtime-cwd.txt"), "from runtime");
+    const runtimeCtx = { runtime: new NodeRuntime({ cwd: tmpDir }) };
+    const result = await ReadTool.execute({ path: "runtime-cwd.txt" }, runtimeCtx);
+    expect(result as string).toBe("from runtime");
   });
 });

@@ -1,47 +1,36 @@
-import { Agent } from "../src/agent";
-import { JustBashRuntime } from "../src/runtime/just-bash";
-import { InMemorySessionStore } from "../src/store/memory";
-import { BashTool } from "../src/tools/bash";
-import { WebFetchTool } from "../src/tools/web-fetch";
+// In-process bash runtime — no child processes, no filesystem.
+//
+// JustBashRuntime runs commands in a sandboxed bash interpreter
+// with an in-memory filesystem. Useful for lightweight agents
+// that don't need real OS access.
+//
+// Requires: just-bash (npm i just-bash)
+// Run: npx tsx examples/just-bash.ts
+
+import { Agent } from "agentlayer";
+import { JustBashRuntime } from "agentlayer/runtime/just-bash";
+import { BashTool } from "agentlayer/tools/bash";
+import { WebFetchTool } from "agentlayer/tools/web-fetch";
 
 const agent = new Agent({
-  systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
   model: "moonshotai/kimi-k2.5",
+  systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
   runtime: new JustBashRuntime(),
-  store: new InMemorySessionStore(),
   tools: [BashTool, WebFetchTool],
 });
 
 const session = await agent.createSession();
 
 session
-  .on("message", ({ message }) => {
-    switch (message.role) {
-      case "assistant":
-        console.log(`\n[message: ${message.role}] ${JSON.stringify(message.content)}`);
-        break;
-      case "user":
-        console.log(`\n[message: ${message.role}] ${JSON.stringify(message.content)}`);
-        break;
-      default:
-        break;
-    }
-  })
-  .on("tool_call", (e) => {
-    if (e.name === "bash" && /rm -rf/.test(e.args.command as string)) {
-      return { deny: "Blocked dangerous command" };
-    }
-  })
-  .on("tool_result", (e) => {
-    console.log(`\n[${e.name} ${e.isError ? "failed" : "done"}]`);
-  });
+  .on("text_delta", (e) => void process.stdout.write(e.delta))
+  .on("tool_call", (e) => console.log(`\n> ${e.name}(${JSON.stringify(e.args)})`))
+  .on("tool_result", (e) =>
+    console.log(`[${e.isError ? "error" : "ok"}] ${e.result.slice(0, 120)}\n`),
+  );
 
-await session.send("What OS is this? Use uname -a.");
+session.send("What OS is this? Use uname -a.");
+await session.waitForIdle();
 
-await session.send("What did I ask you first?");
-
-await session.send("How does it compare vs debian?");
-
-await session.send("What is the weather in Tokyo?");
-
-await session.send("whats your cwd?");
+session.send("What is your working directory?");
+await session.waitForIdle();
+console.log();

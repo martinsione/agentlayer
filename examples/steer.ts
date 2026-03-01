@@ -1,48 +1,34 @@
-// Steer mode: interrupt a running turn with a new instruction.
+// Interrupt a running turn with a new instruction (steer mode).
 //
-// The agent starts a slow task (`find /usr -type f`), but we steer it
-// mid-turn to do something different. The steering message auto-denies
-// any pending tool calls and injects before the next model turn.
+// The agent starts a slow task, but a steering message auto-denies
+// pending tool calls and redirects the agent mid-turn.
 //
 // Run: npx tsx examples/steer.ts
 
-import { Agent } from "../src/agent";
-import { JustBashRuntime } from "../src/runtime/just-bash";
-import { InMemorySessionStore } from "../src/store/memory";
-import { BashTool } from "../src/tools/bash";
+import { Agent } from "agentlayer";
+import { BashTool } from "agentlayer/tools/bash";
 
 const agent = new Agent({
-  systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
   model: "moonshotai/kimi-k2.5",
-  runtime: new JustBashRuntime(),
-  store: new InMemorySessionStore(),
+  systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
   tools: [BashTool],
 });
 
 const session = await agent.createSession();
 
-// --- Wire up event listeners ---
-
 session
-  .on("text_delta", ({ delta }) => {
-    process.stdout.write(delta);
-  })
-  .on("tool_call", (e) => console.log(`\n[tool_call: ${e.name}] ${JSON.stringify(e.args)}`))
+  .on("text_delta", (e) => void process.stdout.write(e.delta))
+  .on("tool_call", (e) => console.log(`\n> ${e.name}(${JSON.stringify(e.args)})`))
   .on("tool_result", (e) =>
-    console.log(`[tool_result: ${e.isError ? "error" : "ok"}] ${e.result.slice(0, 100)}`),
+    console.log(`[${e.isError ? "error" : "ok"}] ${e.result.slice(0, 120)}`),
   )
   .on("turn_end", () => console.log("\n--- turn end ---\n"));
 
-// --- Start a long-running task ---
+// Start a slow task
+session.send("List all files under /usr recursively with find.");
 
-session.send("List all files recursively under /usr using `find /usr -type f`.");
-
-// Wait briefly for the loop to begin, then steer mid-turn.
+// Wait for the loop to begin, then steer to something else
 await new Promise((r) => setTimeout(r, 100));
+session.send("Actually, just tell me the current date.", { mode: "steer" });
 
-session.send("Actually, forget that. Just tell me the current date instead.", {
-  mode: "steer",
-});
-
-// Wait until the agent finishes the steered turn.
 await session.waitForIdle();

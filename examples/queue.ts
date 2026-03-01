@@ -1,45 +1,34 @@
-// Queue mode: fire off multiple messages that process sequentially.
+// Queue multiple messages for sequential processing.
 //
-// Each queued message keeps the loop alive for another turn after the
-// current one finishes. This is useful for scripting a series of
-// instructions without waiting for each to complete individually.
+// Each queued message keeps the loop alive for another turn after
+// the current one finishes — useful for scripting a series of
+// instructions without waiting for each individually.
 //
 // Run: npx tsx examples/queue.ts
 
-import { Agent } from "../src/agent";
-import { JustBashRuntime } from "../src/runtime/just-bash";
-import { InMemorySessionStore } from "../src/store/memory";
-import { BashTool } from "../src/tools/bash";
+import { Agent } from "agentlayer";
+import { BashTool } from "agentlayer/tools/bash";
 
 const agent = new Agent({
-  systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
   model: "moonshotai/kimi-k2.5",
-  runtime: new JustBashRuntime(),
-  store: new InMemorySessionStore(),
+  systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
   tools: [BashTool],
-  sendMode: "queue", // default mode for all sessions created by this agent
+  sendMode: "queue",
 });
 
 const session = await agent.createSession();
 
-// --- Wire up event listeners ---
-
 session
-  .on("text_delta", ({ delta }) => {
-    process.stdout.write(delta);
-  })
-  .on("tool_call", (e) => console.log(`\n[tool_call: ${e.name}] ${JSON.stringify(e.args)}`))
+  .on("text_delta", (e) => void process.stdout.write(e.delta))
+  .on("tool_call", (e) => console.log(`\n> ${e.name}(${JSON.stringify(e.args)})`))
   .on("tool_result", (e) =>
-    console.log(`[tool_result: ${e.isError ? "error" : "ok"}] ${e.result.slice(0, 100)}`),
+    console.log(`[${e.isError ? "error" : "ok"}] ${e.result.slice(0, 120)}`),
   )
   .on("turn_end", () => console.log("\n--- turn end ---\n"));
 
-// --- Fire off three messages ---
-// Only the first starts the loop; the rest queue up and process in order.
-
+// Only the first message starts the loop; the rest queue up.
 session.send("What OS is this? Use uname -a.");
 session.send("How much disk space is free? Use df -h.");
 session.send("What is the current uptime?");
 
-// Wait for all queued messages to finish.
 await session.waitForIdle();

@@ -8,6 +8,7 @@
 import type { LanguageModel } from "ai";
 import { z } from "zod/v4";
 import { loop } from "../loop";
+import { getMessageText } from "../types";
 import type { ModelMessage, Tool, ToolContext } from "../types";
 
 const taskSchema = z.object({
@@ -52,12 +53,7 @@ export function createTaskTool(config: TaskToolConfig): Tool {
         ctx.signal,
       )) {
         if (event.type === "message" && event.message.role === "assistant") {
-          // Extract the text content from the assistant message
-          const msg = event.message;
-          const textParts = Array.isArray(msg.content)
-            ? msg.content.filter((p: any) => p.type === "text").map((p: any) => p.text)
-            : [];
-          const text = textParts.join("");
+          const text = getMessageText(event.message);
           if (text) lastAssistantText = text;
         }
       }

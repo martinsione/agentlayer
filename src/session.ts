@@ -1,6 +1,7 @@
 import type { ModelMessage } from "@ai-sdk/provider-utils";
 import type { LanguageModel } from "ai";
 import { loop, type LoopConfig } from "./loop";
+import { getMessageText } from "./types";
 import type {
   MessageEntry,
   SendMode,
@@ -304,14 +305,7 @@ export class Session {
             turnMessages.push(payload.message);
 
             if (payload.message.role === "assistant") {
-              const c = payload.message.content;
-              lastText =
-                typeof c === "string"
-                  ? c
-                  : c
-                      .filter((p): p is { type: "text"; text: string } => p.type === "text")
-                      .map((p) => p.text)
-                      .join("");
+              lastText = getMessageText(payload.message);
 
               if ("usage" in payload) {
                 this._usage.inputTokens += payload.usage.input;

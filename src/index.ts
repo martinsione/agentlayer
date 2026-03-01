@@ -46,6 +46,8 @@ export type {
   AfterToolCallDecision,
   BeforeModelCallEvent,
   BeforeModelCallDecision,
+  BeforeStopEvent,
+  BeforeStopDecision,
   TurnEndEvent,
   ErrorEvent,
   SessionStatus,

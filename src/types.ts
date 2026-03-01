@@ -126,10 +126,16 @@ export type BeforeModelCallEvent = {
 
 export type BeforeModelCallDecision = void | undefined | { system?: string; tools?: Tool[] };
 
+export type BeforeStopEvent = {
+  messages: readonly ModelMessage[];
+};
+export type BeforeStopDecision = void | undefined | { preventStop: true };
+
 export type HookEventMap = {
   "before-tool-call": { payload: BeforeToolCallEvent; decision: ToolCallDecision };
   "after-tool-call": { payload: AfterToolCallEvent; decision: AfterToolCallDecision };
   "before-model-call": { payload: BeforeModelCallEvent; decision: BeforeModelCallDecision };
+  "before-stop": { payload: BeforeStopEvent; decision: BeforeStopDecision };
 };
 
 export type HookEvent = keyof HookEventMap;
@@ -179,10 +185,11 @@ export type SessionEventMap = {
   "tool-call": ToolCallStreamEvent;
   "tool-result": ToolResultStreamEvent;
   "tool-error": ToolErrorStreamEvent;
-  // Hooks (3)
+  // Hooks (4)
   "before-tool-call": BeforeToolCallEvent;
   "after-tool-call": AfterToolCallEvent;
   "before-model-call": BeforeModelCallEvent;
+  "before-stop": BeforeStopEvent;
   // Events (8)
   message: MessageEvent;
   "turn-start": TurnStartEvent;

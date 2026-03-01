@@ -15,6 +15,8 @@ import type {
   AfterToolCallDecision,
   BeforeModelCallEvent,
   BeforeModelCallDecision,
+  BeforeStopEvent,
+  BeforeStopDecision,
   ThinkingLevel,
   ThinkingBudgets,
 } from "./types";
@@ -25,6 +27,7 @@ export type LoopHooks = {
   beforeToolCall?: (event: BeforeToolCallEvent) => Promise<ToolCallDecision>;
   afterToolCall?: (event: AfterToolCallEvent) => Promise<AfterToolCallDecision>;
   beforeModelCall?: (event: BeforeModelCallEvent) => Promise<BeforeModelCallDecision>;
+  beforeStop?: (event: BeforeStopEvent) => Promise<BeforeStopDecision>;
 };
 
 export type LoopConfig = {
@@ -251,6 +254,15 @@ export async function* loop(
           continue;
         }
       }
+
+      // before-stop hook can prevent the loop from ending
+      if (hooks?.beforeStop) {
+        const decision = await hooks.beforeStop({ messages: msgs });
+        if (decision && "preventStop" in decision && decision.preventStop) {
+          continue;
+        }
+      }
+
       break;
     }
   }

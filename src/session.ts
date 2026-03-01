@@ -252,6 +252,7 @@ export class Session {
           beforeToolCall: (e) => this.runHook("before-tool-call", e),
           afterToolCall: (e) => this.runHook("after-tool-call", e),
           beforeModelCall: (e) => this.runHook("before-model-call", e),
+          beforeStop: (e) => this.runHook("before-stop", e),
         },
         onToolProgress: (e) => {
           this.emit("tool-progress", e);

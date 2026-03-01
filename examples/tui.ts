@@ -40,7 +40,16 @@ const syntaxStyle = SyntaxStyle.fromTheme([
 
 const agent = new Agent({
   model: "anthropic/claude-sonnet-4-20250514",
-  systemPrompt: `You are a helpful assistant. Use tools when needed. Be concise. The current date is ${new Date().toISOString().slice(0, 10)}.`,
+  systemPrompt: [
+    "You are a coding assistant running in a terminal.",
+    "Use tools to answer questions. Be concise.",
+    "Prefer glob/grep/read over bash for file exploration.",
+    "Use read to examine files before editing. Use write only for new files.",
+    "",
+    `Working directory: ${process.cwd()}`,
+    `Platform: ${process.platform}`,
+    `Date: ${new Date().toDateString()}`,
+  ].join("\n"),
   tools: [BashTool, ReadTool, WriteTool, GlobTool, GrepTool, WebFetchTool],
 });
 

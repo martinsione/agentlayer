@@ -50,6 +50,8 @@ export interface Tool {
   description: string;
   parameters: Record<string, unknown>; // JSON Schema
   execute(input: Record<string, unknown>, ctx: ToolContext): ToolExecuteReturn;
+  /** When true, the before-tool-call hook fires with needsApproval: true. */
+  needsApproval?: boolean | ((input: Record<string, unknown>) => boolean);
 }
 
 // Session entries — tree-based model with id/parentId on every entry
@@ -103,6 +105,7 @@ export type BeforeToolCallEvent = {
   toolCallId: string;
   toolName: string;
   input: Record<string, unknown>;
+  needsApproval: boolean;
 };
 export type ToolCallDecision =
   | void

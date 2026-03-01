@@ -114,6 +114,7 @@ describe("Session.send", () => {
       toolCallId: "call-1",
       toolName: "bash",
       input: { command: "echo hi" },
+      needsApproval: false,
     });
 
     expect(toolResults).toHaveLength(1);

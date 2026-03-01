@@ -75,10 +75,15 @@ function buildToolDefs(
         let resolvedInput = input as Record<string, unknown>;
 
         if (hooks?.beforeToolCall) {
+          const approval =
+            typeof t.needsApproval === "function"
+              ? t.needsApproval(resolvedInput)
+              : !!t.needsApproval;
           const decision = await hooks.beforeToolCall({
             toolCallId: options.toolCallId,
             toolName: t.name,
             input: resolvedInput,
+            needsApproval: approval,
           });
           if (decision && "deny" in decision) throw new Error(decision.deny);
           if (decision && "input" in decision) resolvedInput = decision.input;

@@ -4,7 +4,7 @@ import { loop } from "./loop";
 import { JustBashRuntime } from "./runtime/just-bash";
 import { createMockModel, drainLoop, userMessage } from "./test/helpers";
 import { BashTool } from "./tools/bash";
-import type { LoopEvent, ModelMessage } from "./types";
+import type { LoopEvent, ModelMessage, ToolResult } from "./types";
 
 describe("loop", () => {
   test("yields events in correct order for text-only", async () => {
@@ -470,6 +470,93 @@ describe("loop", () => {
     }
     if (errors[0]?.type === "tool-error") {
       expect(String(errors[0].error)).toContain("boom");
+    }
+  });
+});
+
+describe("loop ToolResult normalization", () => {
+  const runtime = new JustBashRuntime();
+
+  test("tool returning a plain string works as before", async () => {
+    const stringTool = {
+      name: "string_tool",
+      description: "returns a plain string",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<string> => "plain-string-output",
+    };
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "string_tool", input: {} }] },
+      { text: "Done" },
+    ]);
+
+    const events = await drainLoop([userMessage("Go")], {
+      model,
+      tools: [stringTool],
+      runtime,
+      maxSteps: 10,
+    });
+
+    const results = events.filter((e) => e.type === "tool-result");
+    expect(results).toHaveLength(1);
+    if (results[0]?.type === "tool-result") {
+      expect(results[0].output).toBe("plain-string-output");
+    }
+  });
+
+  test("tool returning a ToolResult object extracts .output for the model", async () => {
+    const structuredTool = {
+      name: "structured_tool",
+      description: "returns a ToolResult object",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<ToolResult> => ({
+        output: "structured-output",
+        metadata: { tokens: 42, cached: true },
+      }),
+    };
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "structured_tool", input: {} }] },
+      { text: "Done" },
+    ]);
+
+    const events = await drainLoop([userMessage("Go")], {
+      model,
+      tools: [structuredTool],
+      runtime,
+      maxSteps: 10,
+    });
+
+    const results = events.filter((e) => e.type === "tool-result");
+    expect(results).toHaveLength(1);
+    if (results[0]?.type === "tool-result") {
+      expect(results[0].output).toBe("structured-output");
+    }
+  });
+
+  test("ToolResult without metadata also works", async () => {
+    const noMetaTool = {
+      name: "no_meta_tool",
+      description: "returns ToolResult without metadata",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<ToolResult> => ({
+        output: "no-meta-output",
+      }),
+    };
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "no_meta_tool", input: {} }] },
+      { text: "Done" },
+    ]);
+
+    const events = await drainLoop([userMessage("Go")], {
+      model,
+      tools: [noMetaTool],
+      runtime,
+      maxSteps: 10,
+    });
+
+    const results = events.filter((e) => e.type === "tool-result");
+    expect(results).toHaveLength(1);
+    if (results[0]?.type === "tool-result") {
+      expect(results[0].output).toBe("no-meta-output");
     }
   });
 });

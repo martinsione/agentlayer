@@ -11,6 +11,7 @@ export type {
   ExecOptions,
   Runtime,
   Tool,
+  ToolResult,
   ToolContext,
   SessionStore,
   AgentOptions,

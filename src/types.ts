@@ -24,6 +24,8 @@ export interface Runtime {
 }
 
 // Tool
+export type ToolResult = { output: string; metadata?: Record<string, unknown> };
+
 export type ToolContext = {
   runtime: Runtime;
   signal?: AbortSignal;
@@ -34,7 +36,7 @@ export interface Tool {
   name: string;
   description: string;
   parameters: Record<string, unknown>; // JSON Schema
-  execute(input: Record<string, unknown>, ctx: ToolContext): Promise<string>;
+  execute(input: Record<string, unknown>, ctx: ToolContext): Promise<string | ToolResult>;
 }
 
 // Session entries — tree-based model with id/parentId on every entry

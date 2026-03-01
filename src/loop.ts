@@ -6,6 +6,7 @@ import { STREAM_EVENT_TYPES } from "./types";
 import type {
   LoopEvent,
   Tool,
+  ToolResult,
   Runtime,
   ToolProgressEvent,
   BeforeToolCallEvent,
@@ -67,11 +68,12 @@ function buildToolDefs(
 
         let result: string;
         try {
-          result = await t.execute(resolvedInput, {
+          const raw = await t.execute(resolvedInput, {
             runtime,
             signal: options.abortSignal,
             onProgress,
           });
+          result = typeof raw === "string" ? raw : raw.output;
         } catch (err) {
           if (hooks?.afterToolCall) {
             await hooks.afterToolCall({

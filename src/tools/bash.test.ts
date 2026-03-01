@@ -7,17 +7,17 @@ const ctx = { runtime: new NodeRuntime() };
 describe("BashTool", () => {
   test("returns stdout for successful command", async () => {
     const result = await BashTool.execute({ command: "echo hello" }, ctx);
-    expect(result.trim()).toBe("hello");
+    expect((result as string).trim()).toBe("hello");
   });
 
   test('returns "(no output)" when command produces nothing', async () => {
     const result = await BashTool.execute({ command: "true" }, ctx);
-    expect(result).toBe("(no output)");
+    expect(result as string).toBe("(no output)");
   });
 
   test("includes stderr in output", async () => {
     const result = await BashTool.execute({ command: "echo err >&2" }, ctx);
-    expect(result).toContain("err");
+    expect(result as string).toContain("err");
   });
 
   test("throws on non-zero exit code", async () => {

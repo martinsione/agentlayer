@@ -31,8 +31,11 @@ session.on("tool_result", (e) => {
   console.log(`${e.name} ${e.isError ? "failed" : "done"}`);
 });
 
-await session.send("How many CPUs does this machine have?");
-await session.send("What about RAM?");
+session.send("How many CPUs does this machine have?");
+await session.waitForIdle();
+
+session.send("What about RAM?");
+await session.waitForIdle();
 ```
 
 ## Architecture
@@ -47,15 +50,17 @@ await session.send("What about RAM?");
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                              Session                                     │
 │                                                                          │
+│  .send(text, opts?)      ──► routes into steeringQueue or followUpQueue  │
+│  .waitForIdle()          ──► resolves when loop settles                  │
 │  .on(event, listener)    ◄── typed events (SessionEventMap)              │
 │  .off(event, listener)                                                   │
-│  .send(text, opts?)      ──► drives the loop, persists to store          │
 └──────────────────────────────┬───────────────────────────────────────────┘
                                │
                                ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                     loop()  ·  two-way async generator                   │
 │                                                                          │
+│  ── drain point 1: inject steering messages ──                           │
 │  ┌──────────┐    ┌──────────────┐    ┌─────────────┐    ┌────────────┐  │
 │  │ streamText│──►│ yield deltas │──►│ yield message│──►│ yield step  │  │
 │  └──────────┘    │  (text_delta)│    │  (assistant) │    │(usage/finish│  │
@@ -63,9 +68,10 @@ await session.send("What about RAM?");
 │       │                                                        │         │
 │       │  ┌─────────────────────────────────────────────────────┘         │
 │       │  │  tool calls?                                                  │
-│       │  │                                                               │
-│       │  ▼                                                               │
+│       │  │  no ── drain point 3: check follow-up queue ── break/continue │
+│       │  │  yes ▼                                                        │
 │       │  Phase 1: yield tool_call ──► receive decision via .next()       │
+│       │     └─ drain point 2: steering? auto-deny remaining tool calls   │
 │       │  Phase 2: execute approved tools in parallel (Promise.all)       │
 │       │  Phase 3: yield tool_result for each                             │
 │       │  │                                                               │
@@ -99,19 +105,58 @@ const agent = new Agent({
   runtime: new NodeRuntime(), // optional, default: NodeRuntime
   store: new InMemorySessionStore(), // optional, default: InMemorySessionStore
   maxSteps: 100, // optional, default: 100
+  sendMode: "steer", // optional, default: "steer"
 });
 ```
 
-- `agent.createSession(id?)` — new session, auto-generates ID if omitted
-- `agent.resumeSession(id)` — load from store, throws if not found
+- `agent.createSession(opts?)` — new session. Accepts `{ id?: string; sendMode?: SendMode }`. Auto-generates ID if omitted.
+- `agent.resumeSession(id, opts?)` — load from store, throws if not found. Accepts optional `{ sendMode?: SendMode }`.
 
 ### Session
 
 Multi-turn conversation with persistence and typed events.
 
-- `session.send(text, opts?)` — appends user message, runs the tool loop, returns `Promise<void>`. Accepts `{ signal?: AbortSignal }`.
+- `session.send(text, opts?)` — fire-and-forget: routes the user message into the loop. Accepts `{ mode?: SendMode; signal?: AbortSignal }`. Returns `void`.
+- `session.waitForIdle()` — returns `Promise<void>` that resolves when the loop finishes (or immediately if idle). Rejects if the loop errors.
 - `session.on(event, listener)` — register a typed event listener, returns `this` for chaining
 - `session.off(event, listener)` — remove a listener
+
+### Send modes
+
+`send()` is non-blocking. What happens depends on whether the loop is idle or running:
+
+| State                         | Behavior                                                                               |
+| ----------------------------- | -------------------------------------------------------------------------------------- |
+| Loop idle                     | Starts a new loop with the message                                                     |
+| Loop running, `mode: "steer"` | Injects before the next model turn. Auto-denies any pending tool calls.                |
+| Loop running, `mode: "queue"` | Queues the message. Processed after the current turn finishes, keeping the loop alive. |
+
+The default mode is `"steer"` unless overridden at the agent or per-call level.
+
+**Steer** — interrupt a running agent:
+
+```ts
+session.send("List all files under /usr recursively");
+
+// While the agent is running, redirect it
+await new Promise((r) => setTimeout(r, 100));
+session.send("Actually, just tell me the date.", { mode: "steer" });
+
+await session.waitForIdle();
+```
+
+**Queue** — script a series of instructions:
+
+```ts
+const agent = new Agent({ model, tools: [BashTool], sendMode: "queue" });
+const session = await agent.createSession();
+
+session.send("What OS is this? Use uname -a.");
+session.send("How much disk space is free?");
+session.send("What is the current uptime?");
+
+await session.waitForIdle(); // all three processed sequentially
+```
 
 ### Events
 
@@ -124,7 +169,7 @@ Multi-turn conversation with persistence and typed events.
 | `tool_call`   | `{ callId, name, args }`                     | void \| `{ deny }` \| `{ args }` | Before tool execution (can block or modify) |
 | `tool_result` | `{ callId, name, result, isError }`          | void                             | After tool execution                        |
 | `step`        | `{ usage: { input, output }, finishReason }` | void                             | One LLM round-trip completed                |
-| `turn_end`    | `{ messages: ModelMessage[], text: string }` | void                             | Full `send()` completed                     |
+| `turn_end`    | `{ messages: ModelMessage[], text: string }` | void                             | Loop finished (all turns processed)         |
 | `error`       | `{ error: Error }`                           | void                             | Something broke                             |
 
 **Event flow** for a turn with tool use:
@@ -160,14 +205,15 @@ Each tool call is evaluated independently. When multiple `tool_call` listeners a
 
 Each step:
 
-1. Calls `streamText()`, yields `text_delta` as fragments arrive
-2. Assembles the assistant message (text + tool calls), yields `message`
-3. Awaits usage/finishReason, yields `step`
-4. If no tool calls, the loop ends
-5. **Phase 1** — yields each `tool_call`, receives a decision via `.next()` (sequential, for approval)
-6. **Phase 2** — executes all approved tools in parallel via `Promise.all`
-7. **Phase 3** — yields each `tool_result` in order (sequential, preserves message order)
-8. Loops back to step 1
+1. **Drain point 1** — injects any pending steering messages before the model call
+2. Calls `streamText()`, yields `text_delta` as fragments arrive
+3. Assembles the assistant message (text + tool calls), yields `message`
+4. Awaits usage/finishReason, yields `step`
+5. If no tool calls → **drain point 3**: checks for follow-up messages. If any, pushes them and continues the loop. Otherwise, the loop ends.
+6. **Phase 1** — yields each `tool_call`, receives a decision via `.next()`. **Drain point 2**: if steering messages arrive mid-phase, auto-denies remaining tool calls.
+7. **Phase 2** — executes all approved tools in parallel via `Promise.all`
+8. **Phase 3** — yields each `tool_result` in order. Deferred steering messages are pushed after tool results to maintain valid message ordering.
+9. Loops back to step 1
 
 The loop mutates the `messages` array directly (passed by reference). The session persists each message to the store as events arrive.
 
@@ -239,7 +285,7 @@ Default: **InMemorySessionStore** (backed by `Map`, lost on process exit).
 
 ```
 src/
-  types.ts          — all type definitions (events, config, interfaces)
+  types.ts          — all type definitions (events, options, interfaces)
   agent.ts          — Agent class (creates/resumes sessions)
   session.ts        — Session class (on/off/send, drives the loop)
   loop.ts           — two-way async generator (streamText + tool execution)

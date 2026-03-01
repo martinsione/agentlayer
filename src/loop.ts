@@ -4,12 +4,16 @@ import { streamText } from "ai";
 import type { LanguageModel } from "ai";
 import type { LoopEvent, Tool, Runtime, ToolCallDecision } from "./types";
 
+export const STEERING_DENY_REASON = "Skipped: user sent a new message";
+
 export type LoopConfig = {
   model: LanguageModel;
   systemPrompt?: string;
   tools: Tool[];
   runtime: Runtime;
   maxSteps: number;
+  getSteeringMessages?: () => ModelMessage[];
+  getFollowUpMessages?: () => ModelMessage[];
 };
 
 export async function* loop(
@@ -17,7 +21,15 @@ export async function* loop(
   config: LoopConfig,
   signal?: AbortSignal,
 ): AsyncGenerator<LoopEvent, void, ToolCallDecision> {
-  const { model, systemPrompt, tools, runtime, maxSteps } = config;
+  const {
+    model,
+    systemPrompt,
+    tools,
+    runtime,
+    maxSteps,
+    getSteeringMessages,
+    getFollowUpMessages,
+  } = config;
 
   const toolDefs: Record<string, unknown> = {};
   for (const t of tools) {
@@ -33,6 +45,12 @@ export async function* loop(
   while (step < maxSteps) {
     step++;
     if (signal?.aborted) break;
+
+    // Drain point 1: inject steering messages before next model call
+    if (getSteeringMessages) {
+      const steering = getSteeringMessages();
+      for (const msg of steering) messages.push(msg);
+    }
 
     const result = streamText({
       model,
@@ -76,7 +94,17 @@ export async function* loop(
       finishReason,
     };
 
-    if (toolCalls.length === 0) break;
+    // Drain point 3: follow-up messages keep the loop alive
+    if (toolCalls.length === 0) {
+      if (getFollowUpMessages) {
+        const followUp = getFollowUpMessages();
+        if (followUp.length > 0) {
+          for (const msg of followUp) messages.push(msg);
+          continue;
+        }
+      }
+      break;
+    }
 
     // Phase 1: collect decisions
     type PendingCall = {
@@ -85,10 +113,32 @@ export async function* loop(
       decision: ToolCallDecision;
     };
     const pending: PendingCall[] = [];
+    let deferredSteering: ModelMessage[] | null = null;
 
-    for (const tc of toolCalls) {
+    for (let i = 0; i < toolCalls.length; i++) {
+      const tc = toolCalls[i]!;
       const t = toolMap.get(tc.toolName);
       let decision: ToolCallDecision;
+
+      // Drain point 2: steering during Phase 1 auto-denies remaining tool calls
+      if (getSteeringMessages) {
+        const steering = getSteeringMessages();
+        if (steering.length > 0) {
+          // Defer insertion until after tool results to maintain valid message ordering
+          deferredSteering = steering;
+          // Auto-deny this and all remaining tool calls
+          for (let j = i; j < toolCalls.length; j++) {
+            const rem = toolCalls[j]!;
+            pending.push({
+              tc: rem,
+              tool: toolMap.get(rem.toolName),
+              decision: { deny: STEERING_DENY_REASON },
+            });
+          }
+          break;
+        }
+      }
+
       if (!t) {
         decision = undefined;
       } else {
@@ -149,6 +199,11 @@ export async function* loop(
         isError,
         message: toolMessage,
       };
+    }
+
+    // Deferred drain point 2: push steering messages after tool results
+    if (deferredSteering) {
+      for (const msg of deferredSteering) messages.push(msg);
     }
   }
 }

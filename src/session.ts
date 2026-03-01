@@ -91,7 +91,7 @@ export class Session {
   readonly id: string;
   private entries: SessionEntry[];
   private _leafId: string | null;
-  private messages: ModelMessage[];
+  private _messages: ModelMessage[];
   private readonly config: SessionConfig;
   private listeners = new Map<keyof SessionEventMap, Set<Listener<unknown>>>();
 
@@ -109,12 +109,16 @@ export class Session {
     this.id = opts.id;
     this.entries = opts.entries;
     this._leafId = opts.leafId;
-    this.messages = buildContext(opts.entries, opts.leafId);
+    this._messages = buildContext(opts.entries, opts.leafId);
     this.config = opts.config;
   }
 
   get leafEntryId(): string | null {
     return this._leafId;
+  }
+
+  get messages(): readonly ModelMessage[] {
+    return this._messages;
   }
 
   get status(): SessionStatus {
@@ -163,7 +167,7 @@ export class Session {
 
     if (!this.completion) {
       // Loop idle — push message and start the loop
-      this.messages.push(userMessage);
+      this._messages.push(userMessage);
       this.completion = createDeferred();
       this.controller = new AbortController();
       const combinedSignal = opts?.signal
@@ -199,7 +203,7 @@ export class Session {
     };
 
     const gen = loop(
-      this.messages,
+      this._messages,
       {
         ...this.config,
         hooks: {
@@ -220,7 +224,7 @@ export class Session {
     let lastText = "";
 
     const persistUserMessage = async (msg: ModelMessage, addToMessages = true) => {
-      if (addToMessages) this.messages.push(msg);
+      if (addToMessages) this._messages.push(msg);
       const entry = this.appendEntry(msg);
       await this.config.store.append(this.id, entry);
       turnMessages.push(msg);
@@ -238,7 +242,7 @@ export class Session {
         switch (event.type) {
           case "message": {
             const { type: _, ...payload } = event;
-            this.messages.push(payload.message);
+            this._messages.push(payload.message);
             const entry = this.appendEntry(payload.message);
             await this.config.store.append(this.id, entry);
             turnMessages.push(payload.message);

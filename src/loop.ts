@@ -104,7 +104,7 @@ function buildToolDefs(
 }
 
 export async function* loop(
-  messages: ModelMessage[],
+  messages: readonly ModelMessage[],
   config: LoopConfig,
   signal?: AbortSignal,
 ): AsyncGenerator<LoopEvent> {
@@ -119,6 +119,9 @@ export async function* loop(
     getFollowUpMessages,
   } = config;
 
+  // Clone so we never mutate the caller's array
+  const msgs = [...messages];
+
   const toolDefs = buildToolDefs(tools, runtime, hooks, config.onToolProgress);
   let step = 0;
 
@@ -131,14 +134,14 @@ export async function* loop(
     // Drain point 1: inject steering messages before next model call
     if (getSteeringMessages) {
       const steering = getSteeringMessages();
-      for (const msg of steering) messages.push(msg);
+      for (const msg of steering) msgs.push(msg);
     }
 
     let system = systemPrompt;
     let currentToolDefs = toolDefs;
 
     if (hooks?.beforeModelCall) {
-      const decision = await hooks.beforeModelCall({ system, tools, messages });
+      const decision = await hooks.beforeModelCall({ system, tools, messages: msgs });
       if (decision && typeof decision === "object") {
         if ("system" in decision && decision.system !== undefined) system = decision.system;
         if ("tools" in decision && decision.tools !== undefined) {
@@ -150,7 +153,7 @@ export async function* loop(
     const result = streamText({
       model,
       system,
-      messages,
+      messages: msgs,
       tools: currentToolDefs as Parameters<typeof streamText>[0]["tools"],
       stopWhen: stepCountIs(1),
       abortSignal: signal,
@@ -178,7 +181,7 @@ export async function* loop(
     ]);
 
     for (const msg of response.messages) {
-      messages.push(msg as ModelMessage);
+      msgs.push(msg as ModelMessage);
 
       if (msg.role === "assistant") {
         yield {
@@ -202,7 +205,7 @@ export async function* loop(
       if (getFollowUpMessages) {
         const followUp = getFollowUpMessages();
         if (followUp.length > 0) {
-          for (const msg of followUp) messages.push(msg);
+          for (const msg of followUp) msgs.push(msg);
           continue;
         }
       }

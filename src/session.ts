@@ -219,7 +219,8 @@ export class Session {
     const turnMessages: ModelMessage[] = [];
     let lastText = "";
 
-    const persistUserMessage = async (msg: ModelMessage) => {
+    const persistUserMessage = async (msg: ModelMessage, addToMessages = true) => {
+      if (addToMessages) this.messages.push(msg);
       const entry = this.appendEntry(msg);
       await this.config.store.append(this.id, entry);
       turnMessages.push(msg);
@@ -227,7 +228,7 @@ export class Session {
     };
 
     try {
-      for (const msg of initialUserMessages) await persistUserMessage(msg);
+      for (const msg of initialUserMessages) await persistUserMessage(msg, false);
 
       await this.emit("turn-start", {});
 
@@ -237,6 +238,7 @@ export class Session {
         switch (event.type) {
           case "message": {
             const { type: _, ...payload } = event;
+            this.messages.push(payload.message);
             const entry = this.appendEntry(payload.message);
             await this.config.store.append(this.id, entry);
             turnMessages.push(payload.message);

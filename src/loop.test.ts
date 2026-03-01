@@ -643,6 +643,7 @@ describe("loop steering/follow-up callbacks", () => {
     ]);
 
     const messages: ModelMessage[] = [userMessage("Hi")];
+    const originalLength = messages.length;
     let stepCount = 0;
     const events: LoopEvent[] = [];
 
@@ -661,8 +662,8 @@ describe("loop steering/follow-up callbacks", () => {
       }
     }
 
-    // The steering message should be in the messages array
-    expect(messages.some((m) => m === steeringMsg)).toBe(true);
+    // The original messages array must NOT be mutated
+    expect(messages).toHaveLength(originalLength);
     // Model should have been called twice (two assistant messages)
     const assistantMessages = events.filter(
       (e) => e.type === "message" && e.message.role === "assistant",
@@ -677,6 +678,7 @@ describe("loop steering/follow-up callbacks", () => {
 
     let followUpReturned = false;
     const messages: ModelMessage[] = [userMessage("Hi")];
+    const originalLength = messages.length;
     const config: LoopConfig = {
       model,
       tools: [],
@@ -699,8 +701,8 @@ describe("loop steering/follow-up callbacks", () => {
     );
     expect(assistantMessages).toHaveLength(2);
 
-    // Follow-up message should be in the messages array
-    expect(messages.some((m) => m === followUpMsg)).toBe(true);
+    // The original messages array must NOT be mutated
+    expect(messages).toHaveLength(originalLength);
 
     // Should have two text deltas
     const deltas = events.filter((e) => e.type === "text-delta");
@@ -727,5 +729,51 @@ describe("loop steering/follow-up callbacks", () => {
     });
 
     expect(eventsWithCallbacks.map((e) => e.type)).toEqual(eventsWithout.map((e) => e.type));
+  });
+});
+
+describe("loop does not mutate caller messages", () => {
+  const runtime = new JustBashRuntime();
+
+  test("original messages array is unchanged after text-only loop", async () => {
+    const model = createMockModel([{ text: "Hello" }]);
+    const messages: ModelMessage[] = [userMessage("Hi")];
+    const snapshot = [...messages];
+
+    await drainLoop(messages, { model, tools: [], runtime, maxSteps: 10 });
+
+    expect(messages).toEqual(snapshot);
+    expect(messages).toHaveLength(1);
+  });
+
+  test("original messages array is unchanged after tool-call loop", async () => {
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "bash", input: { command: "echo hi" } }] },
+      { text: "Done" },
+    ]);
+    const messages: ModelMessage[] = [userMessage("Hi")];
+    const snapshot = [...messages];
+
+    await drainLoop(messages, { model, tools: [BashTool], runtime, maxSteps: 10 });
+
+    expect(messages).toEqual(snapshot);
+    expect(messages).toHaveLength(1);
+  });
+
+  test("new messages are still yielded as events despite no mutation", async () => {
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "bash", input: { command: "echo hi" } }] },
+      { text: "Done" },
+    ]);
+    const messages: ModelMessage[] = [userMessage("Hi")];
+
+    const events = await drainLoop(messages, { model, tools: [BashTool], runtime, maxSteps: 10 });
+
+    // Original array untouched
+    expect(messages).toHaveLength(1);
+
+    // But message events were still yielded
+    const messageEvents = events.filter((e) => e.type === "message");
+    expect(messageEvents.length).toBeGreaterThanOrEqual(2); // assistant + tool messages
   });
 });

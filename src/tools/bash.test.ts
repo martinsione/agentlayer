@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { NodeRuntime } from "../runtime/node";
 import { BashTool } from "./bash";
 
-// Note: the bash tool spawns processes directly (does not use Runtime)
-const ctx = { runtime: {} as any };
+const ctx = { runtime: new NodeRuntime() };
 
 describe("BashTool", () => {
   test("returns stdout for successful command", async () => {

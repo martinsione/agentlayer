@@ -1,7 +1,7 @@
 import { dirname } from "node:path";
 import { Bash } from "just-bash";
 import type { IFileSystem } from "just-bash";
-import type { Runtime, ExecResult } from "../types";
+import type { Runtime, ExecResult, ExecOptions } from "../types";
 
 export type JustBashRuntimeOptions = {
   cwd?: string;
@@ -22,13 +22,11 @@ export class JustBashRuntime implements Runtime {
     });
   }
 
-  async exec(
-    command: string,
-    opts?: { cwd?: string; timeout?: number; signal?: AbortSignal },
-  ): Promise<ExecResult> {
+  async exec(command: string, opts?: ExecOptions): Promise<ExecResult> {
     let signal = opts?.signal;
-    if (opts?.timeout != null) {
-      const timeoutSignal = AbortSignal.timeout(opts.timeout);
+    const timeoutSecs = opts?.timeout;
+    if (timeoutSecs != null) {
+      const timeoutSignal = AbortSignal.timeout(timeoutSecs * 1000);
       signal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
     }
 
@@ -36,27 +34,35 @@ export class JustBashRuntime implements Runtime {
       cwd: opts?.cwd ?? this.cwd,
     });
 
+    let result: { stdout: string; stderr: string; exitCode: number };
+
     if (!signal) {
-      const result = await execPromise;
-      return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode };
+      result = await execPromise;
+    } else {
+      result = await Promise.race([
+        execPromise,
+        new Promise<never>((_, reject) => {
+          if (signal.aborted) {
+            reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
+            return;
+          }
+          signal.addEventListener(
+            "abort",
+            () => {
+              reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
+            },
+            { once: true },
+          );
+        }),
+      ]);
     }
 
-    const result = await Promise.race([
-      execPromise,
-      new Promise<never>((_, reject) => {
-        if (signal.aborted) {
-          reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
-          return;
-        }
-        signal.addEventListener(
-          "abort",
-          () => {
-            reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
-          },
-          { once: true },
-        );
-      }),
-    ]);
+    // Simulate onData with final output (just-bash doesn't support streaming)
+    if (opts?.onData) {
+      const combined = result.stdout + result.stderr;
+      if (combined) opts.onData(Buffer.from(combined, "utf-8"));
+    }
+
     return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode };
   }
 

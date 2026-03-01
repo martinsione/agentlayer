@@ -8,12 +8,17 @@ export type { TextPart, ToolCallPart, ToolResultPart } from "@ai-sdk/provider-ut
 // Runtime — the key abstraction. Tools call runtime, never Node APIs.
 export type ExecResult = { stdout: string; stderr: string; exitCode: number };
 
+export type ExecOptions = {
+  cwd?: string;
+  timeout?: number;
+  signal?: AbortSignal;
+  /** Streaming callback — called with each chunk of combined stdout+stderr output. */
+  onData?: (data: Buffer) => void;
+};
+
 export interface Runtime {
   readonly cwd: string;
-  exec(
-    command: string,
-    opts?: { cwd?: string; timeout?: number; signal?: AbortSignal },
-  ): Promise<ExecResult>;
+  exec(command: string, opts?: ExecOptions): Promise<ExecResult>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
 }

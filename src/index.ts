@@ -8,6 +8,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   ExecResult,
+  ExecOptions,
   Runtime,
   Tool,
   ToolContext,

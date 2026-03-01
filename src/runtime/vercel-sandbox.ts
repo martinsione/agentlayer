@@ -1,5 +1,5 @@
 import type { Sandbox } from "@vercel/sandbox";
-import type { Runtime, ExecResult } from "../types";
+import type { Runtime, ExecResult, ExecOptions } from "../types";
 
 export type SandboxRuntimeOptions = {
   sandbox: Sandbox;
@@ -15,13 +15,10 @@ export class VercelSandboxRuntime implements Runtime {
     this.cwd = opts.cwd ?? "/vercel/sandbox";
   }
 
-  async exec(
-    command: string,
-    opts?: { cwd?: string; timeout?: number; signal?: AbortSignal },
-  ): Promise<ExecResult> {
+  async exec(command: string, opts?: ExecOptions): Promise<ExecResult> {
     let signal = opts?.signal;
     if (opts?.timeout != null) {
-      const timeoutSignal = AbortSignal.timeout(opts.timeout);
+      const timeoutSignal = AbortSignal.timeout(opts.timeout * 1000);
       signal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
     }
 
@@ -34,6 +31,13 @@ export class VercelSandboxRuntime implements Runtime {
 
     const stdout = await result.stdout();
     const stderr = await result.stderr();
+
+    // Simulate onData with final output (sandbox doesn't support streaming)
+    if (opts?.onData) {
+      const combined = stdout + stderr;
+      if (combined) opts.onData(Buffer.from(combined, "utf-8"));
+    }
+
     return { stdout, stderr, exitCode: result.exitCode };
   }
 

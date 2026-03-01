@@ -411,6 +411,22 @@ describe("Session.send modes", () => {
     }
   });
 
+  test("throwing error listener does not hang waitForIdle", async () => {
+    const agent = new Agent({
+      model: createFailingModel(),
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+    });
+    const session = await agent.createSession();
+
+    session.on("error", () => {
+      throw new Error("listener exploded");
+    });
+
+    session.send("Hi");
+    expect(session.waitForIdle()).rejects.toThrow();
+  });
+
   test("createSession with options object", async () => {
     const { agent } = createTestAgent([{ text: "Hello" }]);
     const session = await agent.createSession({ id: "my-id", sendMode: "queue" });

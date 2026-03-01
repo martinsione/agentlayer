@@ -1,4 +1,4 @@
-// Terminal UI chat with streaming, tool calls, and send mode toggling.
+// Terminal UI chat with streaming and tool calls.
 //
 // Run: bun examples/tui.ts
 
@@ -12,7 +12,6 @@ import {
   InputRenderableEvents,
   RenderableEvents,
   SyntaxStyle,
-  KeyEvent,
   t,
   bold,
   fg,
@@ -24,30 +23,17 @@ import { GrepTool } from "agentlayer/tools/grep";
 import { ReadTool } from "agentlayer/tools/read";
 import { WebFetchTool } from "agentlayer/tools/web-fetch";
 import { WriteTool } from "agentlayer/tools/write";
-import type { SendMode } from "agentlayer/types";
 
-// -- Theme (dark only) --
-
-const bg = "#0a0a0a";
-const theme = {
-  text: "#e0e0e0",
-  muted: "#505050",
-  border: "#282828",
-  borderActive: "#555",
-  placeholder: "#505050",
-  tool: "#a0a0a0",
-  error: "#ff8080",
-};
-
+const text = "#e0e0e0";
+const muted = "#505050";
 const syntaxStyle = SyntaxStyle.fromTheme([
-  { scope: ["default"], style: { foreground: theme.text } },
+  { scope: ["default"], style: { foreground: text } },
   {
     scope: ["markup.heading.1", "markup.heading.2", "markup.heading.3"],
-    style: { foreground: theme.text, bold: true },
+    style: { foreground: text, bold: true },
   },
-  { scope: ["markup.raw"], style: { foreground: "#a0a0a0" } },
-  { scope: ["markup.link.url"], style: { foreground: "#808080" } },
-  { scope: ["punctuation.special", "markup.list"], style: { foreground: theme.muted } },
+  { scope: ["markup.raw", "markup.link.url"], style: { foreground: "#808080" } },
+  { scope: ["punctuation.special", "markup.list"], style: { foreground: muted } },
 ]);
 
 // -- Agent --
@@ -68,13 +54,7 @@ const root = new BoxRenderable(renderer, {
   width: "100%",
   height: "100%",
   padding: 1,
-  backgroundColor: bg,
-});
-
-const header = new TextRenderable(renderer, {
-  id: "header",
-  content: t`${bold(fg(theme.text)("agentlayer"))} ${fg(theme.muted)("tui")}`,
-  marginBottom: 1,
+  backgroundColor: "#0a0a0a",
 });
 
 const scroll = new ScrollBoxRenderable(renderer, {
@@ -88,7 +68,7 @@ const scroll = new ScrollBoxRenderable(renderer, {
 const inputBox = new BoxRenderable(renderer, {
   id: "input-box",
   borderStyle: "rounded",
-  borderColor: theme.border,
+  borderColor: "#282828",
   border: true,
   width: "100%",
   flexShrink: 0,
@@ -98,72 +78,29 @@ const inputBox = new BoxRenderable(renderer, {
 const input = new InputRenderable(renderer, {
   id: "input",
   placeholder: "Send a message...",
-  placeholderColor: theme.placeholder,
-  textColor: theme.text,
-  cursorColor: theme.text,
+  placeholderColor: muted,
+  textColor: text,
+  cursorColor: text,
   cursorStyle: { style: "line" },
   width: "100%",
 });
 
-let sendMode: SendMode = "steer";
-
-function modeLabelContent() {
-  return t`${fg(theme.text)(sendMode)} ${fg(theme.muted)("(shift+tab to cycle)")}`;
-}
-
-const modeLabel = new TextRenderable(renderer, {
-  id: "mode-label",
-  content: modeLabelContent(),
-  flexShrink: 0,
-});
-
-const queueArea = new BoxRenderable(renderer, {
-  id: "queue-area",
-  flexDirection: "column",
-  width: "100%",
-  flexShrink: 0,
-});
-
 inputBox.add(input);
-root.add(header);
 root.add(scroll);
-root.add(queueArea);
 root.add(inputBox);
-root.add(modeLabel);
 renderer.root.add(root);
 
-// -- Session events --
+// -- Session --
 
 const session = await agent.createSession();
-
 let md: MarkdownRenderable | null = null;
 let buf = "";
-let thinking: TextRenderable | null = null;
-const pendingQueue: { text: string; id: string }[] = [];
-
-function showThinking() {
-  if (thinking) return;
-  thinking = new TextRenderable(renderer, {
-    id: `thinking-${crypto.randomUUID()}`,
-    content: t`${fg(theme.muted)("thinking...")}`,
-  });
-  scroll.add(thinking);
-}
-
-function hideThinking() {
-  if (!thinking) return;
-  scroll.remove(thinking.id);
-  thinking = null;
-}
 
 session.on("status", (e) => {
-  inputBox.borderColor = e.status === "busy" ? theme.borderActive : theme.border;
-  if (e.status === "busy") showThinking();
-  if (e.status === "idle") hideThinking();
+  inputBox.borderColor = e.status === "busy" ? "#555" : "#282828";
 });
 
 session.on("text-start", () => {
-  hideThinking();
   buf = "";
   md = new MarkdownRenderable(renderer, {
     id: `md-${crypto.randomUUID()}`,
@@ -185,93 +122,40 @@ session.on("text-end", () => {
   md = null;
 });
 
-const toolProgressEls = new Map<string, TextRenderable>();
-
 session.on("tool-call", (e) => {
-  const input = e.input as Record<string, unknown> | undefined;
-  let label = e.toolName;
-  if (input?.url) label += ` ${input.url}`;
-  else if (input?.command) label += ` ${input.command}`;
-  else if (input?.path) label += ` ${input.path}`;
-  else if (input?.pattern) label += ` ${input.pattern}`;
+  const args = e.input as Record<string, unknown> | undefined;
+  const detail = args?.command ?? args?.url ?? args?.path ?? args?.pattern ?? "";
   scroll.add(
     new TextRenderable(renderer, {
       id: `tc-${e.toolCallId}`,
-      content: t`${fg(theme.tool)(`  ↳ ${label}`)}`,
+      content: t`${fg(muted)(`  ↳ ${e.toolName} ${detail}`)}`,
     }),
   );
-
-  const progress = new TextRenderable(renderer, {
-    id: `tp-${e.toolCallId}`,
-    content: t``,
-  });
-  scroll.add(progress);
-  toolProgressEls.set(e.toolCallId, progress);
-});
-
-session.on("tool-progress", (e) => {
-  const el = toolProgressEls.get(e.toolCallId);
-  if (!el) return;
-  const lines = e.text.split("\n").slice(-5);
-  el.content = t`${fg(theme.muted)(lines.join("\n"))}`;
 });
 
 session.on("error", (e) => {
   scroll.add(
     new TextRenderable(renderer, {
       id: `err-${crypto.randomUUID()}`,
-      content: t`${fg(theme.error)(`Error: ${e.error.message}`)}`,
+      content: t`${fg("#ff8080")(`Error: ${e.error.message}`)}`,
     }),
   );
 });
 
-session.on("message", (e) => {
-  if (e.message.role !== "user" || pendingQueue.length === 0) return;
-  const entry = pendingQueue.shift()!;
-  queueArea.remove(entry.id);
-  scroll.add(
-    new TextRenderable(renderer, {
-      id: `u-${crypto.randomUUID()}`,
-      content: t`${bold(fg(theme.text)(`> ${entry.text}`))}`,
-      marginTop: 1,
-    }),
-  );
-});
-
-// -- Input handling --
+// -- Input --
 
 input.on(InputRenderableEvents.ENTER, (value: string) => {
   if (!value.trim()) return;
   input.value = "";
-
-  if (session.status === "busy" && sendMode === "queue") {
-    const id = `q-${crypto.randomUUID()}`;
-    pendingQueue.push({ text: value, id });
-    queueArea.add(
-      new TextRenderable(renderer, {
-        id,
-        content: t`${fg(theme.muted)(`> ${value}`)}`,
-      }),
-    );
-  } else {
-    scroll.add(
-      new TextRenderable(renderer, {
-        id: `u-${crypto.randomUUID()}`,
-        content: t`${bold(fg(theme.text)(`> ${value}`))}`,
-        marginTop: 1,
-      }),
-    );
-  }
-
-  session.send(value, { mode: sendMode });
+  scroll.add(
+    new TextRenderable(renderer, {
+      id: `u-${crypto.randomUUID()}`,
+      content: t`${bold(fg(text)(`> ${value}`))}`,
+      marginTop: 1,
+    }),
+  );
+  session.send(value);
 });
-
-input.onKeyDown = (key: KeyEvent) => {
-  if (key.name === "tab" && key.shift) {
-    sendMode = sendMode === "steer" ? "queue" : "steer";
-    modeLabel.content = modeLabelContent();
-  }
-};
 
 input.focus();
 input.on(RenderableEvents.BLURRED, () => input.focus());

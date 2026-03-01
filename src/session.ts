@@ -198,33 +198,34 @@ export class Session {
     };
   }
 
-  send(text: string, opts?: { mode?: SendMode; signal?: AbortSignal }): void {
+  send(
+    input: string | ModelMessage | ModelMessage[],
+    opts?: { mode?: SendMode; signal?: AbortSignal },
+  ): void {
     const mode = opts?.mode ?? this.config.sendMode ?? "steer";
 
-    const userMessage: ModelMessage = {
-      role: "user",
-      content: [{ type: "text", text }],
-    };
+    const userMessages: ModelMessage[] = Array.isArray(input)
+      ? input
+      : typeof input === "string"
+        ? [{ role: "user", content: [{ type: "text" as const, text: input }] }]
+        : [input];
 
     if (!this.completion) {
-      // Loop idle — push message and start the loop
-      this._messages.push(userMessage);
+      // Loop idle — push messages and start the loop
+      for (const msg of userMessages) this._messages.push(msg);
       this.completion = createDeferred();
       this.controller = new AbortController();
       const combinedSignal = opts?.signal
         ? AbortSignal.any([this.controller.signal, opts.signal])
         : this.controller.signal;
       this.emit("status", { status: "busy" });
-      this.runLoop(combinedSignal, [userMessage]);
+      this.runLoop(combinedSignal, userMessages);
       return;
     }
 
     // Loop running — route based on mode (synchronous, no await)
-    if (mode === "steer") {
-      this.steeringQueue.push(userMessage);
-    } else {
-      this.followUpQueue.push(userMessage);
-    }
+    const queue = mode === "steer" ? this.steeringQueue : this.followUpQueue;
+    for (const msg of userMessages) queue.push(msg);
   }
 
   waitForIdle(): Promise<void> {

@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import type { Tool, ToolContext, ToolResult } from "./types";
+import type { Tool, ToolContext, ToolExecuteReturn, ToolResult } from "./types";
 
 type ZodObjectSchema = z.ZodObject<z.core.$ZodLooseShape>;
 
@@ -30,7 +30,7 @@ export function defineTool<TSchema extends ZodObjectSchema>(opts: {
   name: string;
   description: string;
   schema: TSchema;
-  execute: (input: z.infer<TSchema>, ctx: ToolContext) => Promise<string | ToolResult>;
+  execute: (input: z.infer<TSchema>, ctx: ToolContext) => ToolExecuteReturn;
 }): Tool {
   return {
     name: opts.name,

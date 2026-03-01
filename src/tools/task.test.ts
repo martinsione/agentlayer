@@ -119,7 +119,7 @@ describe("createTaskTool", () => {
 
     // The nested loop should have been cut short by the abort.
     // It either returns the partial text or the no-response fallback.
-    const output = typeof result === "string" ? result : result.output;
+    const output = result as string;
     expect(output).not.toBe("Should not reach here");
   });
 
@@ -142,7 +142,7 @@ describe("createTaskTool", () => {
 
     const result = await taskTool.execute({ prompt: "Do something" }, { runtime });
 
-    const output = typeof result === "string" ? result : result.output;
+    const output = result as string;
     expect(output).toBe("(no response from subtask)");
   });
 

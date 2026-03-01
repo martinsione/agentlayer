@@ -32,11 +32,24 @@ export type ToolContext = {
   onProgress?: (text: string) => void;
 };
 
+/**
+ * The return type of a tool's execute function.
+ *
+ * Tools can return either:
+ * - A `Promise<string | ToolResult>` for simple one-shot execution.
+ * - An `AsyncGenerator<string, string | ToolResult>` that yields progress
+ *   strings and returns the final result. Each yielded string is forwarded
+ *   as a `tool-progress` event.
+ */
+export type ToolExecuteReturn =
+  | Promise<string | ToolResult>
+  | AsyncGenerator<string, string | ToolResult>;
+
 export interface Tool {
   name: string;
   description: string;
   parameters: Record<string, unknown>; // JSON Schema
-  execute(input: Record<string, unknown>, ctx: ToolContext): Promise<string | ToolResult>;
+  execute(input: Record<string, unknown>, ctx: ToolContext): ToolExecuteReturn;
 }
 
 // Session entries — tree-based model with id/parentId on every entry

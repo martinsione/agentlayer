@@ -68,11 +68,27 @@ function buildToolDefs(
 
         let result: string;
         try {
-          const raw = await t.execute(resolvedInput, {
+          const rawOrGen = t.execute(resolvedInput, {
             runtime,
             signal: options.abortSignal,
             onProgress,
           });
+
+          let raw: string | ToolResult;
+          // Detect async generators by checking for Symbol.asyncIterator
+          if (rawOrGen && Symbol.asyncIterator in (rawOrGen as any)) {
+            const gen = rawOrGen as AsyncGenerator<string, string | ToolResult>;
+            let iterResult = await gen.next();
+            while (!iterResult.done) {
+              // Each yielded value is a progress string
+              if (onProgress) onProgress(iterResult.value);
+              iterResult = await gen.next();
+            }
+            raw = iterResult.value;
+          } else {
+            raw = await (rawOrGen as Promise<string | ToolResult>);
+          }
+
           result = typeof raw === "string" ? raw : raw.output;
         } catch (err) {
           if (hooks?.afterToolCall) {

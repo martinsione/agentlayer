@@ -4,7 +4,7 @@ import { loop } from "./loop";
 import { JustBashRuntime } from "./runtime/just-bash";
 import { createMockModel, drainLoop, userMessage } from "./test/helpers";
 import { BashTool } from "./tools/bash";
-import type { LoopEvent, ModelMessage, ToolResult } from "./types";
+import type { LoopEvent, ModelMessage, ToolProgressEvent, ToolResult } from "./types";
 
 describe("loop", () => {
   test("yields events in correct order for text-only", async () => {
@@ -775,5 +775,245 @@ describe("loop does not mutate caller messages", () => {
     // But message events were still yielded
     const messageEvents = events.filter((e) => e.type === "message");
     expect(messageEvents.length).toBeGreaterThanOrEqual(2); // assistant + tool messages
+  });
+});
+
+describe("loop async generator tools", () => {
+  const runtime = new JustBashRuntime();
+
+  test("async generator tool yields progress events and returns final result", async () => {
+    const progressLog: ToolProgressEvent[] = [];
+
+    const streamingTool = {
+      name: "streaming",
+      description: "a tool that streams progress",
+      parameters: { type: "object", properties: {} },
+      execute: async function* (): AsyncGenerator<string, string> {
+        yield "step 1 done";
+        yield "step 2 done";
+        yield "step 3 done";
+        return "final-result";
+      },
+    };
+
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "streaming", input: {} }] },
+      { text: "Done" },
+    ]);
+
+    const events = await drainLoop([userMessage("Go")], {
+      model,
+      tools: [streamingTool],
+      runtime,
+      maxSteps: 10,
+      onToolProgress: (e) => progressLog.push(e),
+    });
+
+    // Verify progress events were emitted
+    expect(progressLog).toHaveLength(3);
+    expect(progressLog[0]).toEqual({
+      toolCallId: "c1",
+      toolName: "streaming",
+      text: "step 1 done",
+    });
+    expect(progressLog[1]).toEqual({
+      toolCallId: "c1",
+      toolName: "streaming",
+      text: "step 2 done",
+    });
+    expect(progressLog[2]).toEqual({
+      toolCallId: "c1",
+      toolName: "streaming",
+      text: "step 3 done",
+    });
+
+    // Verify final result was used
+    const results = events.filter((e) => e.type === "tool-result");
+    expect(results).toHaveLength(1);
+    if (results[0]?.type === "tool-result") {
+      expect(results[0].output).toBe("final-result");
+    }
+  });
+
+  test("async generator tool returning ToolResult extracts .output", async () => {
+    const streamingTool = {
+      name: "streaming_structured",
+      description: "streams and returns ToolResult",
+      parameters: { type: "object", properties: {} },
+      execute: async function* (): AsyncGenerator<string, ToolResult> {
+        yield "progress...";
+        return { output: "structured-output", metadata: { key: "value" } };
+      },
+    };
+
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "streaming_structured", input: {} }] },
+      { text: "Done" },
+    ]);
+
+    const events = await drainLoop([userMessage("Go")], {
+      model,
+      tools: [streamingTool],
+      runtime,
+      maxSteps: 10,
+    });
+
+    const results = events.filter((e) => e.type === "tool-result");
+    expect(results).toHaveLength(1);
+    if (results[0]?.type === "tool-result") {
+      expect(results[0].output).toBe("structured-output");
+    }
+  });
+
+  test("async generator tool with no yields still returns final result", async () => {
+    const streamingTool = {
+      name: "no_yields",
+      description: "returns immediately via generator",
+      parameters: { type: "object", properties: {} },
+      execute: async function* (): AsyncGenerator<string, string> {
+        return "immediate-result";
+      },
+    };
+
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "no_yields", input: {} }] },
+      { text: "Done" },
+    ]);
+
+    const progressLog: ToolProgressEvent[] = [];
+    const events = await drainLoop([userMessage("Go")], {
+      model,
+      tools: [streamingTool],
+      runtime,
+      maxSteps: 10,
+      onToolProgress: (e) => progressLog.push(e),
+    });
+
+    // No progress events since nothing was yielded
+    expect(progressLog).toHaveLength(0);
+
+    // Final result still works
+    const results = events.filter((e) => e.type === "tool-result");
+    expect(results).toHaveLength(1);
+    if (results[0]?.type === "tool-result") {
+      expect(results[0].output).toBe("immediate-result");
+    }
+  });
+
+  test("async generator tool error is handled correctly", async () => {
+    const failingGenTool = {
+      name: "fail_gen",
+      description: "generator that throws",
+      parameters: { type: "object", properties: {} },
+      execute: async function* (): AsyncGenerator<string, string> {
+        yield "partial progress";
+        throw new Error("generator-kaboom");
+      },
+    };
+
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "fail_gen", input: {} }] },
+      { text: "OK" },
+    ]);
+
+    const progressLog: ToolProgressEvent[] = [];
+    const events = await drainLoop([userMessage("Go")], {
+      model,
+      tools: [failingGenTool],
+      runtime,
+      maxSteps: 10,
+      onToolProgress: (e) => progressLog.push(e),
+    });
+
+    // Progress was emitted before the error
+    expect(progressLog).toHaveLength(1);
+    expect(progressLog[0]!.text).toBe("partial progress");
+
+    // Tool error event was emitted
+    const toolError = events.find((e) => e.type === "tool-error");
+    expect(toolError).toBeDefined();
+    if (toolError?.type === "tool-error") {
+      expect(String(toolError.error)).toContain("generator-kaboom");
+    }
+  });
+
+  test("existing Promise-based tools still work alongside generator tools", async () => {
+    const promiseTool = {
+      name: "promise_tool",
+      description: "regular promise tool",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<string> => "promise-result",
+    };
+    const genTool = {
+      name: "gen_tool",
+      description: "generator tool",
+      parameters: { type: "object", properties: {} },
+      execute: async function* (): AsyncGenerator<string, string> {
+        yield "gen-progress";
+        return "gen-result";
+      },
+    };
+
+    const model = createMockModel([
+      {
+        toolCalls: [
+          { id: "c1", name: "promise_tool", input: {} },
+          { id: "c2", name: "gen_tool", input: {} },
+        ],
+      },
+      { text: "Done" },
+    ]);
+
+    const progressLog: ToolProgressEvent[] = [];
+    const events = await drainLoop([userMessage("Go")], {
+      model,
+      tools: [promiseTool, genTool],
+      runtime,
+      maxSteps: 10,
+      onToolProgress: (e) => progressLog.push(e),
+    });
+
+    // Only the gen tool emits progress
+    expect(progressLog).toHaveLength(1);
+    expect(progressLog[0]!.toolName).toBe("gen_tool");
+
+    // Both produce results
+    const results = events.filter((e) => e.type === "tool-result");
+    expect(results).toHaveLength(2);
+  });
+
+  test("hooks.afterToolCall fires with result from async generator tool", async () => {
+    const genTool = {
+      name: "gen_tool",
+      description: "generator tool",
+      parameters: { type: "object", properties: {} },
+      execute: async function* (): AsyncGenerator<string, string> {
+        yield "progress";
+        return "gen-final";
+      },
+    };
+
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "gen_tool", input: {} }] },
+      { text: "Done" },
+    ]);
+
+    const afterEvents: { toolName: string; result?: string }[] = [];
+
+    await drainLoop([userMessage("Go")], {
+      model,
+      tools: [genTool],
+      runtime,
+      maxSteps: 10,
+      hooks: {
+        afterToolCall: async (e) => {
+          afterEvents.push({ toolName: e.toolName, result: e.result });
+        },
+      },
+    });
+
+    expect(afterEvents).toHaveLength(1);
+    expect(afterEvents[0]!.toolName).toBe("gen_tool");
+    expect(afterEvents[0]!.result).toBe("gen-final");
   });
 });

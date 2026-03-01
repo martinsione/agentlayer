@@ -161,6 +161,9 @@ export async function* loop(
     hooks,
     getSteeringMessages,
     getFollowUpMessages,
+    thinkingLevel,
+    thinkingBudgets,
+    transformContext,
   } = config;
 
   // Clone so we never mutate the caller's array
@@ -194,10 +197,8 @@ export async function* loop(
       }
     }
 
-    const budget = getThinkingBudget(config.thinkingLevel, config.thinkingBudgets);
-    const contextMessages = config.transformContext
-      ? await config.transformContext([...msgs])
-      : msgs;
+    const budget = getThinkingBudget(thinkingLevel, thinkingBudgets);
+    const contextMessages = transformContext ? await transformContext([...msgs]) : msgs;
 
     const result = streamText({
       model,

@@ -55,9 +55,6 @@ export interface Tool<TInput = any> {
   needsApproval?: boolean | ((input: TInput) => boolean);
 }
 
-/** A collection of tools with potentially different input types. */
-export type Tools = Tool[];
-
 // Session entries — tree-based model with id/parentId on every entry
 export type SessionEntryBase = {
   id: string;
@@ -174,7 +171,6 @@ export type ToolProgressEvent = { toolCallId: string; toolName: string; text: st
 export type SessionUsage = {
   inputTokens: number;
   outputTokens: number;
-  totalTokens: number;
 };
 
 // Status

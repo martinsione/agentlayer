@@ -100,7 +100,7 @@ export class Session {
   private readonly config: SessionConfig;
   private listeners = new Map<keyof SessionEventMap, Set<Listener<unknown>>>();
 
-  private _usage: SessionUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+  private _usage = { inputTokens: 0, outputTokens: 0 };
   private steeringQueue: ModelMessage[] = [];
   private followUpQueue: ModelMessage[] = [];
   private completion: Deferred | null = null;
@@ -131,8 +131,11 @@ export class Session {
     return this.completion ? "busy" : "idle";
   }
 
-  get usage(): SessionUsage {
-    return this._usage;
+  get usage(): SessionUsage & { totalTokens: number } {
+    return {
+      ...this._usage,
+      totalTokens: this._usage.inputTokens + this._usage.outputTokens,
+    };
   }
 
   get model(): LanguageModel {
@@ -309,7 +312,6 @@ export class Session {
               if ("usage" in payload) {
                 this._usage.inputTokens += payload.usage.input;
                 this._usage.outputTokens += payload.usage.output;
-                this._usage.totalTokens += payload.usage.input + payload.usage.output;
               }
             }
 
@@ -340,7 +342,7 @@ export class Session {
     this.controller = null;
     this.steeringQueue.length = 0;
     this.followUpQueue.length = 0;
-    this.emit("status", { status: "idle" });
+    this.emit("status", { status: "idle" }).catch(() => {});
     return deferred;
   }
 

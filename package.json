@@ -86,7 +86,7 @@
   "peerDependencies": {
     "@vercel/sandbox": "^1.7.0",
     "just-bash": "^2.11.5",
-    "zod": "^3.25"
+    "zod": "^3.25 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "@vercel/sandbox": {

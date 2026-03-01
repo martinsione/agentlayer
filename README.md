@@ -15,7 +15,7 @@ import { Agent } from "agentlayer";
 import { BashTool } from "agentlayer/tools/bash";
 
 const agent = new Agent({
-  model: "anthropic/claude-sonnet-4-20250514", // any AI SDK LanguageModel
+  model: "moonshotai/kimi-k2.5", // any AI SDK LanguageModel
   tools: [BashTool],
 });
 

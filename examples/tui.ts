@@ -39,7 +39,7 @@ const syntaxStyle = SyntaxStyle.fromTheme([
 // -- Agent --
 
 const agent = new Agent({
-  model: "anthropic/claude-sonnet-4-20250514",
+  model: "moonshotai/kimi-k2.5",
   systemPrompt: [
     "You are a coding assistant running in a terminal.",
     "Use tools to answer questions. Be concise.",

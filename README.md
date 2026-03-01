@@ -15,12 +15,11 @@ import { Agent } from "agentlayer";
 import { BashTool } from "agentlayer/tools/bash";
 
 const agent = new Agent({
-  model: "moonshotai/kimi-k2.5", // any AI SDK LanguageModel
+  model: "anthropic/claude-sonnet-4-20250514", // any AI SDK LanguageModel
   tools: [BashTool],
 });
 
 const session = await agent.createSession();
-
 session.on("text-delta", (e) => process.stdout.write(e.text));
 
 session.send("How many CPUs does this machine have?");
@@ -29,7 +28,7 @@ await session.waitForIdle();
 
 ## Custom tools
 
-Create type-safe tools with zod schemas:
+Create type-safe tools with zod schemas via `defineTool`:
 
 ```ts
 import { defineTool } from "agentlayer/define-tool";
@@ -39,10 +38,11 @@ const weather = defineTool({
   name: "get_weather",
   description: "Get the current weather for a city",
   schema: z.object({ city: z.string() }),
+  needsApproval: true, // fires before-tool-call with needsApproval: true
   execute: async (input) => {
+    // input.city is typed as string
     const res = await fetch(`https://wttr.in/${input.city}?format=j1`);
-    const data = await res.json();
-    return JSON.stringify(data.current_condition[0]);
+    return JSON.stringify(await res.json());
   },
 });
 
@@ -52,7 +52,7 @@ const agent = new Agent({ model, tools: [weather] });
 Or implement the `Tool` interface directly without zod:
 
 ```ts
-const echo = {
+const echo: Tool = {
   name: "echo",
   description: "Echo the input",
   parameters: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
@@ -60,25 +60,25 @@ const echo = {
 };
 ```
 
-## Tool call interception
+## Tool call hooks
 
 Approve, deny, or modify tool calls before they execute:
 
 ```ts
 session.on("before-tool-call", (e) => {
+  // e.needsApproval is true if the tool declared needsApproval
+
   // Block dangerous commands
   if (e.toolName === "bash" && /rm -rf/.test(e.input.command as string)) {
     return { deny: "Blocked dangerous command" };
   }
 
   // Override arguments
-  if (e.toolName === "bash") {
-    return { input: { ...e.input, timeout: 5000 } };
-  }
-
-  // Return nothing to allow as-is
+  return { input: { ...e.input, timeout: 5000 } };
 });
 ```
+
+Other hooks: `after-tool-call`, `before-model-call`, `before-stop` (can return `{ preventStop: true }` to keep the loop running).
 
 ## Session persistence
 
@@ -95,138 +95,111 @@ const agent = new Agent({
 
 // First run
 const session = await agent.createSession({ id: "my-session" });
-session.on("text-delta", (e) => process.stdout.write(e.text));
 session.send("What OS is this?");
 await session.waitForIdle();
 
 // Later: resume with full context
 const resumed = await agent.resumeSession("my-session");
-resumed.on("text-delta", (e) => process.stdout.write(e.text));
 resumed.send("And how much RAM does it have?");
-await resumed.waitForIdle();
+await session.waitForIdle();
 ```
 
 ## Send modes
 
-`send()` is non-blocking. Control what happens when you send a message while the agent is running:
-
-**Steer** (default) — interrupt a running agent:
+`send()` is non-blocking and accepts `string`, `ModelMessage`, or `ModelMessage[]`:
 
 ```ts
-session.send("List all files under /usr recursively");
+// Simple text
+session.send("Hello");
 
-// While the agent is running, redirect it
-await new Promise((r) => setTimeout(r, 100));
-session.send("Actually, just tell me the date.", { mode: "steer" });
-
-await session.waitForIdle();
+// Pre-built message (images, multi-part content)
+session.send({ role: "user", content: [{ type: "image", image: buf }] });
 ```
 
-**Queue** — script a series of instructions:
+Control what happens when you send while the agent is running:
+
+- **Steer** (default) — interrupt: `session.send("Do this instead", { mode: "steer" })`
+- **Queue** — sequential: `new Agent({ model, sendMode: "queue" })`
+
+## Dynamic session properties
+
+Change model, tools, system prompt, or thinking level mid-session:
 
 ```ts
-const agent = new Agent({ model, tools: [BashTool], sendMode: "queue" });
-const session = await agent.createSession();
-
-session.send("What OS is this?");
-session.send("How much disk space is free?");
-session.send("What is the current uptime?");
-
-await session.waitForIdle(); // all three processed sequentially
+session.model = anotherModel;
+session.tools = [BashTool, newTool];
+session.systemPrompt = "New instructions";
+session.thinkingLevel = "high"; // "off" | "minimal" | "low" | "medium" | "high"
 ```
 
-## Status and abort
+Changes take effect on the next turn.
 
-Check if the session is busy, listen for status changes, or cancel a running turn:
+## Token usage
 
 ```ts
-session.status; // "idle" | "busy"
+const { inputTokens, outputTokens, totalTokens } = session.usage;
+```
 
-session.on("status", (e) => {
-  console.log(e.status); // "busy" when a turn starts, "idle" when it settles
+Accumulated across all model calls in the session.
+
+## Context transformation
+
+Transform the message context before each model call (pruning, compaction, injection):
+
+```ts
+const agent = new Agent({
+  model,
+  transformContext: (messages) => {
+    // messages is a shallow copy — return a new array, don't mutate in place
+    if (messages.length > 50) return messages.slice(-20);
+    return messages;
+  },
 });
-
-// Cancel a running turn
-session.abort(); // no-op if idle
-```
-
-## Step events
-
-Each model call within a turn is bracketed by `step-start` / `step-end` events. Useful for showing progress in multi-step tool loops:
-
-```ts
-session.on("step-start", (e) => console.log(`Step ${e.step} starting`));
-session.on("step-end", (e) => console.log(`Step ${e.step} done`));
 ```
 
 ## Events
 
-20 typed events: 12 stream events pass through from the AI SDK, plus 8 framework events. All listeners can be async. Only `before-tool-call` can return a value.
+`session.on()` returns an unsubscribe function:
 
 ```ts
-// Stream events (from AI SDK)
-session.on("text-delta", (e) => process.stdout.write(e.text));
-session.on("tool-call", (e) => console.log(e.toolName, e.input));
-session.on("tool-result", (e) => console.log(e.toolName, e.output));
-session.on("tool-error", (e) => console.log(e.toolName, e.error));
-
-// Framework events
-session.on("before-tool-call", (e) => {
-  // Return { deny: string } to block, { input } to override, or nothing to allow
-});
-
-session.on("message", (e) => {
-  console.log(e.message.role, e.message.content);
-});
-
-session.on("turn-end", (e) => {
-  console.log("final text:", e.text);
-});
-
-session.on("error", (e) => {
-  console.error(e.error);
-});
+const unsub = session.on("text-delta", (e) => process.stdout.write(e.text));
+// later: unsub();
 ```
 
-All stream events: `text-start`, `text-delta`, `text-end`, `reasoning-start`, `reasoning-delta`, `reasoning-end`, `tool-input-start`, `tool-input-delta`, `tool-input-end`, `tool-call`, `tool-result`, `tool-error`.
+**Stream events** (from AI SDK): `text-start`, `text-delta`, `text-end`, `reasoning-start`, `reasoning-delta`, `reasoning-end`, `tool-input-start`, `tool-input-delta`, `tool-input-end`, `tool-call`, `tool-result`, `tool-error`.
+
+**Framework events**: `message`, `turn-start`, `turn-end`, `error`, `status`, `tool-progress`, `step-start`, `step-end`.
+
+**Hook events** (can return decisions): `before-tool-call`, `after-tool-call`, `before-model-call`, `before-stop`.
 
 ## Runtimes
 
 Tools call `ctx.runtime` instead of Node APIs directly, so you can swap execution environments:
 
 ```ts
-import { NodeRuntime } from "agentlayer/runtime/node";
-import { VercelSandboxRuntime } from "agentlayer/runtime/sandbox";
+import { NodeRuntime } from "agentlayer/runtime/node"; // default
+import { VercelSandboxRuntime } from "agentlayer/runtime/sandbox"; // cloud
+import { JustBashRuntime } from "agentlayer/runtime/just-bash"; // in-memory
 
-// Local machine (default)
-new Agent({ model, runtime: new NodeRuntime() });
-
-// Vercel Sandbox (requires @vercel/sandbox)
-new Agent({ model, runtime: new VercelSandboxRuntime() });
-```
-
-Implement the `Runtime` interface for custom environments:
-
-```ts
-interface Runtime {
-  readonly cwd: string;
-  exec(command: string, opts?: { cwd?; timeout?; signal? }): Promise<ExecResult>;
-  readFile(path: string): Promise<string>;
-  writeFile(path: string, content: string): Promise<void>;
-}
+new Agent({ model, runtime: new VercelSandboxRuntime({ sandbox }) });
 ```
 
 ## Agent options
 
 ```ts
 const agent = new Agent({
-  model, // LanguageModel (required)
-  systemPrompt: "You are a ...", // optional
-  tools: [BashTool, WebFetchTool], // optional, default: []
-  runtime: new NodeRuntime(), // optional, default: NodeRuntime
-  store: new InMemorySessionStore(), // optional, default: InMemorySessionStore
-  maxSteps: 100, // optional, default: 100
-  sendMode: "steer", // optional, default: "steer"
+  model,                              // LanguageModel (required)
+  systemPrompt: "You are a ...",      // optional
+  tools: [BashTool, WebFetchTool],    // optional
+  runtime: new NodeRuntime(),         // optional, default: NodeRuntime
+  store: new InMemorySessionStore(),  // optional, default: InMemorySessionStore
+  maxSteps: 100,                      // optional, default: 100
+  sendMode: "steer",                  // "steer" | "queue", default: "steer"
+  hooks: { ... },                     // AgentHooks, applied to all sessions
+  thinkingLevel: "medium",            // "off" | "minimal" | "low" | "medium" | "high"
+  thinkingBudgets: { medium: 10000 }, // custom token budgets per level
+  providerOptions: { ... },           // passed to streamText providerOptions
+  transformContext: (msgs) => msgs,   // pre-model message transform
 });
 ```
 
@@ -235,7 +208,21 @@ const agent = new Agent({
 | Tool           | Import                       | Description                                        |
 | -------------- | ---------------------------- | -------------------------------------------------- |
 | `BashTool`     | `agentlayer/tools/bash`      | Shell commands with output truncation and timeout  |
+| `ReadTool`     | `agentlayer/tools/read`      | Read file contents (truncated to 100KB)            |
+| `WriteTool`    | `agentlayer/tools/write`     | Write files (creates parent directories)           |
+| `GlobTool`     | `agentlayer/tools/glob`      | Find files matching glob patterns                  |
+| `GrepTool`     | `agentlayer/tools/grep`      | Search file contents with regex                    |
 | `WebFetchTool` | `agentlayer/tools/web-fetch` | HTTP GET/POST with 15s timeout and 50KB truncation |
+| `TaskTool`     | `agentlayer/tools/task`      | Spawn a nested agent loop as a tool call           |
+
+## Examples
+
+```bash
+npx tsx examples/basic.ts           # quickstart with custom tool
+npx tsx examples/just-bash.ts       # sandboxed in-memory runtime
+npx tsx examples/vercel-sandbox.ts  # cloud sandbox runtime
+bun examples/tui.ts                 # full terminal UI chat app
+```
 
 ## License
 

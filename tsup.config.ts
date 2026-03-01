@@ -15,6 +15,7 @@ export default defineConfig({
     "store/jsonl": "src/store/jsonl.ts",
     "tools/bash": "src/tools/bash.ts",
     "tools/web-fetch": "src/tools/web-fetch.ts",
+    "tools/task": "src/tools/task.ts",
   },
   format: ["esm"],
   dts: true,

@@ -60,6 +60,10 @@
     "./tools/web-fetch": {
       "types": "./dist/tools/web-fetch.d.ts",
       "default": "./dist/tools/web-fetch.js"
+    },
+    "./tools/task": {
+      "types": "./dist/tools/task.d.ts",
+      "default": "./dist/tools/task.js"
     }
   },
   "scripts": {

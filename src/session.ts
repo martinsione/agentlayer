@@ -278,7 +278,9 @@ export class Session {
       this.settle().resolve();
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      await this.emit("error", { error });
+      try {
+        await this.emit("error", { error });
+      } catch {}
       this.settle().reject(error);
     }
   }

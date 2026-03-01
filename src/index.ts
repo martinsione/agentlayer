@@ -1,7 +1,7 @@
 export { Agent } from "./agent";
 export { Session, buildContext } from "./session";
 export { loop } from "./loop";
-export type { LoopConfig } from "./loop";
+export type { LoopConfig, LoopHooks } from "./loop";
 export type {
   ModelMessage,
   TextPart,
@@ -38,8 +38,17 @@ export type {
   TurnStartEvent,
   BeforeToolCallEvent,
   ToolCallDecision,
+  AfterToolCallEvent,
+  AfterToolCallDecision,
+  BeforeModelCallEvent,
+  BeforeModelCallDecision,
   TurnEndEvent,
   ErrorEvent,
   SessionEventMap,
   LoopEvent,
+  // Hook types
+  HookEventMap,
+  HookEvent,
+  HookListener,
+  AgentHooks,
 } from "./types";

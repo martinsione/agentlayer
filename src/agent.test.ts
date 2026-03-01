@@ -2,9 +2,11 @@ import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Agent } from "./agent";
+import { JustBashRuntime } from "./runtime/just-bash";
 import { JsonlSessionStore } from "./store/jsonl";
 import { InMemorySessionStore } from "./store/memory";
-import { createSlowTool, createTestAgent } from "./test/helpers";
+import { createMockModel, createSlowTool, createTestAgent } from "./test/helpers";
 import { BashTool } from "./tools/bash";
 
 describe("Agent", () => {
@@ -52,6 +54,62 @@ describe("Agent", () => {
 
     await session.waitForIdle();
     expect(deltas).toContain("Queued reply");
+  });
+
+  test("agent-level hooks fire before session-level hooks", async () => {
+    const order: string[] = [];
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "bash", input: { command: "echo hi" } }] },
+      { text: "Done" },
+    ]);
+    const agent = new Agent({
+      model,
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+      tools: [BashTool],
+      hooks: {
+        "before-tool-call": () => {
+          order.push("agent");
+        },
+      },
+    });
+
+    const session = await agent.createSession();
+    session.on("before-tool-call", () => {
+      order.push("session");
+    });
+
+    session.send("Go");
+    await session.waitForIdle();
+
+    expect(order).toEqual(["agent", "session"]);
+  });
+
+  test("agent-level hooks apply to resumed sessions", async () => {
+    const store = new InMemorySessionStore();
+    const hookCalls: string[] = [];
+    const model = createMockModel([{ text: "First" }, { text: "Second" }]);
+    const agent = new Agent({
+      model,
+      runtime: new JustBashRuntime(),
+      store,
+      hooks: {
+        "before-model-call": () => {
+          hookCalls.push("before-model-call");
+        },
+      },
+    });
+
+    const session = await agent.createSession({ id: "s1" });
+    session.send("Hi");
+    await session.waitForIdle();
+
+    const resumed = await agent.resumeSession("s1");
+    resumed.send("Hello again");
+    await resumed.waitForIdle();
+
+    // Hook should fire for both the original and resumed session
+    expect(hookCalls).toHaveLength(2);
   });
 
   test("resumeSession loads entries from store and rebuilds context", async () => {

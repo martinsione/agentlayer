@@ -6,13 +6,15 @@ import type {
   SessionEntry,
   SessionStore,
   SessionEventMap,
-  ToolCallDecision,
+  HookEvent,
+  HookEventMap,
+  HookListener,
 } from "./types";
 
 type Listener<T> = (event: T) => unknown | Promise<unknown>;
 
-type ListenerFor<K extends keyof SessionEventMap> = K extends "before-tool-call"
-  ? (payload: SessionEventMap[K]) => void | ToolCallDecision | Promise<void | ToolCallDecision>
+type ListenerFor<K extends keyof SessionEventMap> = K extends HookEvent
+  ? HookListener<K>
   : (payload: SessionEventMap[K]) => void | Promise<void>;
 
 type Deferred = { promise: Promise<void>; resolve: () => void; reject: (err: Error) => void };
@@ -185,7 +187,11 @@ export class Session {
       this.messages,
       {
         ...this.config,
-        onBeforeToolCall: (event) => this.emitBeforeToolCall(event),
+        hooks: {
+          beforeToolCall: (e) => this.runHook("before-tool-call", e),
+          afterToolCall: (e) => this.runHook("after-tool-call", e),
+          beforeModelCall: (e) => this.runHook("before-model-call", e),
+        },
         getSteeringMessages: () => drainQueue(this.steeringQueue),
         getFollowUpMessages: () => drainQueue(this.followUpQueue),
       },
@@ -268,15 +274,16 @@ export class Session {
     }
   }
 
-  private async emitBeforeToolCall(
-    payload: SessionEventMap["before-tool-call"],
-  ): Promise<ToolCallDecision> {
-    const set = this.listeners.get("before-tool-call");
-    if (!set) return undefined;
-    for (const listener of set) {
-      const result = await listener(payload);
-      if (result && typeof result === "object" && ("deny" in result || "input" in result)) {
-        return result as ToolCallDecision;
+  private async runHook<K extends HookEvent>(
+    event: K,
+    payload: HookEventMap[K]["payload"],
+  ): Promise<HookEventMap[K]["decision"]> {
+    const set = this.listeners.get(event);
+    if (!set?.size) return undefined;
+    for (const fn of set) {
+      const result = await (fn as Function)(payload);
+      if (result != null && typeof result === "object") {
+        return result as HookEventMap[K]["decision"];
       }
     }
     return undefined;

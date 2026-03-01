@@ -85,6 +85,38 @@ export type ToolCallDecision =
   | { deny: string }
   | { input: Record<string, unknown> };
 
+export type AfterToolCallEvent = {
+  toolCallId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+} & ({ result: string; error?: undefined } | { result?: undefined; error: Error });
+
+export type AfterToolCallDecision = void | undefined | { result: string };
+
+export type BeforeModelCallEvent = {
+  system: string | undefined;
+  tools: readonly Tool[];
+  messages: readonly ModelMessage[];
+};
+
+export type BeforeModelCallDecision = void | undefined | { system?: string; tools?: Tool[] };
+
+export type HookEventMap = {
+  "before-tool-call": { payload: BeforeToolCallEvent; decision: ToolCallDecision };
+  "after-tool-call": { payload: AfterToolCallEvent; decision: AfterToolCallDecision };
+  "before-model-call": { payload: BeforeModelCallEvent; decision: BeforeModelCallDecision };
+};
+
+export type HookEvent = keyof HookEventMap;
+
+export type HookListener<K extends HookEvent> = (
+  event: HookEventMap[K]["payload"],
+) => void | HookEventMap[K]["decision"] | Promise<void | HookEventMap[K]["decision"]>;
+
+export type AgentHooks = {
+  [K in HookEvent]?: HookListener<K> | HookListener<K>[];
+};
+
 export type MessageEvent =
   | { message: ModelMessage & { role: "user" } }
   | {
@@ -111,8 +143,11 @@ export type SessionEventMap = {
   "tool-call": ToolCallStreamEvent;
   "tool-result": ToolResultStreamEvent;
   "tool-error": ToolErrorStreamEvent;
-  // Framework events (5)
+  // Hooks (3)
   "before-tool-call": BeforeToolCallEvent;
+  "after-tool-call": AfterToolCallEvent;
+  "before-model-call": BeforeModelCallEvent;
+  // Events (4)
   message: MessageEvent;
   "turn-start": TurnStartEvent;
   "turn-end": TurnEndEvent;
@@ -155,4 +190,5 @@ export type AgentOptions = {
   store?: SessionStore;
   maxSteps?: number; // default: 100
   sendMode?: SendMode;
+  hooks?: AgentHooks;
 };

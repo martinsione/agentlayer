@@ -125,7 +125,7 @@ describe("loop", () => {
     expect(results).toHaveLength(2);
   });
 
-  test("onBeforeToolCall deny produces tool-error", async () => {
+  test("hooks.beforeToolCall deny produces tool-error", async () => {
     const model = createMockModel([
       {
         toolCalls: [
@@ -142,9 +142,11 @@ describe("loop", () => {
       tools: [BashTool],
       runtime,
       maxSteps: 10,
-      onBeforeToolCall: async (e) => {
-        if (e.toolCallId === "c2") return { deny: "blocked" };
-        return undefined;
+      hooks: {
+        beforeToolCall: async (e) => {
+          if (e.toolCallId === "c2") return { deny: "blocked" };
+          return undefined;
+        },
       },
     });
 
@@ -157,7 +159,7 @@ describe("loop", () => {
     }
   });
 
-  test("onBeforeToolCall input override", async () => {
+  test("hooks.beforeToolCall input override", async () => {
     const model = createMockModel([
       { toolCalls: [{ id: "c1", name: "bash", input: { command: "echo original" } }] },
       { text: "Done" },
@@ -169,8 +171,10 @@ describe("loop", () => {
       tools: [BashTool],
       runtime,
       maxSteps: 10,
-      onBeforeToolCall: async () => {
-        return { input: { command: "echo overridden" } };
+      hooks: {
+        beforeToolCall: async () => {
+          return { input: { command: "echo overridden" } };
+        },
       },
     });
 
@@ -179,6 +183,157 @@ describe("loop", () => {
     if (results[0]?.type === "tool-result") {
       expect(results[0].output).toBe("overridden\n");
     }
+  });
+
+  test("hooks.afterToolCall can override result", async () => {
+    const echoTool = {
+      name: "echo",
+      description: "echoes",
+      parameters: { type: "object", properties: { text: { type: "string" } } },
+      execute: async (input: Record<string, unknown>): Promise<string> => String(input.text),
+    };
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "echo", input: { text: "original" } }] },
+      { text: "Done" },
+    ]);
+    const runtime = new JustBashRuntime();
+
+    const events = await drainLoop([userMessage("Go")], {
+      model,
+      tools: [echoTool],
+      runtime,
+      maxSteps: 10,
+      hooks: {
+        afterToolCall: async () => ({ result: "overridden" }),
+      },
+    });
+
+    const results = events.filter((e) => e.type === "tool-result");
+    expect(results).toHaveLength(1);
+    if (results[0]?.type === "tool-result") {
+      expect(results[0].output).toBe("overridden");
+    }
+  });
+
+  test("hooks.afterToolCall fires with error on tool failure", async () => {
+    const failTool = {
+      name: "fail",
+      description: "always fails",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<string> => {
+        throw new Error("kaboom");
+      },
+    };
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "fail", input: {} }] },
+      { text: "OK" },
+    ]);
+    const runtime = new JustBashRuntime();
+
+    const afterEvents: { toolName: string; error?: Error; result?: string }[] = [];
+
+    await drainLoop([userMessage("Go")], {
+      model,
+      tools: [failTool],
+      runtime,
+      maxSteps: 10,
+      hooks: {
+        afterToolCall: async (e) => {
+          afterEvents.push({
+            toolName: e.toolName,
+            error: e.error,
+            result: e.result,
+          });
+        },
+      },
+    });
+
+    expect(afterEvents).toHaveLength(1);
+    expect(afterEvents[0]!.toolName).toBe("fail");
+    expect(afterEvents[0]!.error).toBeInstanceOf(Error);
+    expect(afterEvents[0]!.error!.message).toBe("kaboom");
+    expect(afterEvents[0]!.result).toBeUndefined();
+  });
+
+  test("hooks.afterToolCall does NOT fire for denied calls", async () => {
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "bash", input: { command: "echo hi" } }] },
+      { text: "OK" },
+    ]);
+    const runtime = new JustBashRuntime();
+
+    const afterEvents: unknown[] = [];
+
+    await drainLoop([userMessage("Go")], {
+      model,
+      tools: [BashTool],
+      runtime,
+      maxSteps: 10,
+      hooks: {
+        beforeToolCall: async () => ({ deny: "blocked" }),
+        afterToolCall: async (e) => {
+          afterEvents.push(e);
+        },
+      },
+    });
+
+    expect(afterEvents).toHaveLength(0);
+  });
+
+  test("hooks.beforeModelCall can modify system prompt", async () => {
+    const model = createMockModel([{ text: "Hello" }]);
+    const runtime = new JustBashRuntime();
+
+    const events = await drainLoop([userMessage("Hi")], {
+      model,
+      tools: [],
+      runtime,
+      maxSteps: 10,
+      systemPrompt: "original system",
+      hooks: {
+        beforeModelCall: async () => ({ system: "modified system" }),
+      },
+    });
+
+    // Verify model was called (we get events) — the hook modified the system prompt
+    const types = events.map((e) => e.type);
+    expect(types).toContain("text-delta");
+
+    // Check the model was called with modified system (embedded as first prompt entry)
+    const calls = (model as any).doStreamCalls;
+    expect(calls[0].prompt[0]).toEqual({ role: "system", content: "modified system" });
+  });
+
+  test("hooks.beforeModelCall can filter tools", async () => {
+    const toolA = {
+      name: "tool_a",
+      description: "Tool A",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<string> => "a",
+    };
+    const toolB = {
+      name: "tool_b",
+      description: "Tool B",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<string> => "b",
+    };
+    const model = createMockModel([{ text: "Hello" }]);
+    const runtime = new JustBashRuntime();
+
+    await drainLoop([userMessage("Hi")], {
+      model,
+      tools: [toolA, toolB],
+      runtime,
+      maxSteps: 10,
+      hooks: {
+        beforeModelCall: async () => ({ tools: [toolA] }),
+      },
+    });
+
+    // Check the model was called with only tool_a
+    const calls = (model as any).doStreamCalls;
+    const toolNames = (calls[0].tools ?? []).map((t: any) => t.name);
+    expect(toolNames).toEqual(["tool_a"]);
   });
 
   test("yields no events when signal is already aborted", async () => {

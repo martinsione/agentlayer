@@ -3,13 +3,24 @@ import type { ModelMessage } from "@ai-sdk/provider-utils";
 import { streamText, stepCountIs } from "ai";
 import type { LanguageModel } from "ai";
 import { STREAM_EVENT_TYPES } from "./types";
-import type { LoopEvent, Tool, Runtime, BeforeToolCallEvent, ToolCallDecision } from "./types";
+import type {
+  LoopEvent,
+  Tool,
+  Runtime,
+  BeforeToolCallEvent,
+  ToolCallDecision,
+  AfterToolCallEvent,
+  AfterToolCallDecision,
+  BeforeModelCallEvent,
+  BeforeModelCallDecision,
+} from "./types";
 
 const STREAM_EVENTS: Set<string> = new Set(STREAM_EVENT_TYPES);
 
-export type LoopContext = {
-  runtime: Runtime;
-  onBeforeToolCall?: (event: BeforeToolCallEvent) => Promise<ToolCallDecision>;
+export type LoopHooks = {
+  beforeToolCall?: (event: BeforeToolCallEvent) => Promise<ToolCallDecision>;
+  afterToolCall?: (event: AfterToolCallEvent) => Promise<AfterToolCallDecision>;
+  beforeModelCall?: (event: BeforeModelCallEvent) => Promise<BeforeModelCallDecision>;
 };
 
 export type LoopConfig = {
@@ -18,10 +29,68 @@ export type LoopConfig = {
   tools: Tool[];
   runtime: Runtime;
   maxSteps: number;
-  onBeforeToolCall?: (event: BeforeToolCallEvent) => Promise<ToolCallDecision>;
+  hooks?: LoopHooks;
   getSteeringMessages?: () => ModelMessage[];
   getFollowUpMessages?: () => ModelMessage[];
 };
+
+function buildToolDefs(
+  tools: Tool[],
+  runtime: Runtime,
+  hooks?: LoopHooks,
+): Record<string, unknown> {
+  const toolDefs: Record<string, unknown> = {};
+  for (const t of tools) {
+    toolDefs[t.name] = tool({
+      description: t.description,
+      inputSchema: jsonSchema(t.parameters),
+      execute: async (input, options) => {
+        let resolvedInput = input as Record<string, unknown>;
+
+        if (hooks?.beforeToolCall) {
+          const decision = await hooks.beforeToolCall({
+            toolCallId: options.toolCallId,
+            toolName: t.name,
+            input: resolvedInput,
+          });
+          if (decision && "deny" in decision) throw new Error(decision.deny);
+          if (decision && "input" in decision) resolvedInput = decision.input;
+        }
+
+        let result: string;
+        try {
+          result = await t.execute(resolvedInput, {
+            runtime,
+            signal: options.abortSignal,
+          });
+        } catch (err) {
+          if (hooks?.afterToolCall) {
+            await hooks.afterToolCall({
+              toolCallId: options.toolCallId,
+              toolName: t.name,
+              input: resolvedInput,
+              error: err instanceof Error ? err : new Error(String(err)),
+            });
+          }
+          throw err;
+        }
+
+        if (hooks?.afterToolCall) {
+          const decision = await hooks.afterToolCall({
+            toolCallId: options.toolCallId,
+            toolName: t.name,
+            input: resolvedInput,
+            result,
+          });
+          if (decision && "result" in decision) return decision.result;
+        }
+
+        return result;
+      },
+    });
+  }
+  return toolDefs;
+}
 
 export async function* loop(
   messages: ModelMessage[],
@@ -34,35 +103,12 @@ export async function* loop(
     tools,
     runtime,
     maxSteps,
-    onBeforeToolCall,
+    hooks,
     getSteeringMessages,
     getFollowUpMessages,
   } = config;
 
-  const toolDefs: Record<string, unknown> = {};
-  for (const t of tools) {
-    toolDefs[t.name] = tool({
-      description: t.description,
-      inputSchema: jsonSchema(t.parameters),
-      execute: async (input, options) => {
-        const ctx = options.experimental_context as LoopContext;
-        if (ctx.onBeforeToolCall) {
-          const decision = await ctx.onBeforeToolCall({
-            toolCallId: options.toolCallId,
-            toolName: t.name,
-            input: input as Record<string, unknown>,
-          });
-          if (decision && "deny" in decision) throw new Error(decision.deny);
-          if (decision && "input" in decision) input = decision.input;
-        }
-        return await t.execute(input as Record<string, unknown>, {
-          runtime: ctx.runtime,
-          signal: options.abortSignal,
-        });
-      },
-    });
-  }
-
+  const toolDefs = buildToolDefs(tools, runtime, hooks);
   let step = 0;
 
   while (step < maxSteps) {
@@ -75,13 +121,25 @@ export async function* loop(
       for (const msg of steering) messages.push(msg);
     }
 
+    let system = systemPrompt;
+    let currentToolDefs = toolDefs;
+
+    if (hooks?.beforeModelCall) {
+      const decision = await hooks.beforeModelCall({ system, tools, messages });
+      if (decision && typeof decision === "object") {
+        if ("system" in decision && decision.system !== undefined) system = decision.system;
+        if ("tools" in decision && decision.tools !== undefined) {
+          currentToolDefs = buildToolDefs(decision.tools, runtime, hooks);
+        }
+      }
+    }
+
     const result = streamText({
       model,
-      system: systemPrompt,
+      system,
       messages,
-      tools: toolDefs as Parameters<typeof streamText>[0]["tools"],
+      tools: currentToolDefs as Parameters<typeof streamText>[0]["tools"],
       stopWhen: stepCountIs(1),
-      experimental_context: { runtime, onBeforeToolCall } satisfies LoopContext,
       abortSignal: signal,
     });
 

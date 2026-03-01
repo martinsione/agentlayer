@@ -2,18 +2,21 @@ import type { LoopConfig } from "./loop";
 import { NodeRuntime } from "./runtime/node";
 import { Session } from "./session";
 import { InMemorySessionStore } from "./store/memory";
-import type { AgentOptions, SessionOptions, SessionStore } from "./types";
+import type { AgentHooks, AgentOptions, HookEvent, SessionOptions, SessionStore } from "./types";
 
 const DEFAULT_MAX_STEPS = 100;
 
 export class Agent {
   private readonly config: LoopConfig & { store: SessionStore };
   private readonly defaultSendMode: AgentOptions["sendMode"];
+  private readonly hooks: AgentHooks | undefined;
 
   constructor(config: AgentOptions) {
     this.defaultSendMode = config.sendMode;
+    this.hooks = config.hooks;
+    const { hooks: _, ...rest } = config;
     this.config = {
-      ...config,
+      ...rest,
       tools: config.tools ?? [],
       runtime: config.runtime ?? new NodeRuntime(),
       store: config.store ?? new InMemorySessionStore(),
@@ -24,12 +27,14 @@ export class Agent {
   async createSession(opts?: SessionOptions & { id?: string }): Promise<Session> {
     const sessionId = opts?.id ?? crypto.randomUUID();
     const sendMode = opts?.sendMode ?? this.defaultSendMode;
-    return new Session({
+    const session = new Session({
       id: sessionId,
       entries: [],
       leafId: null,
       config: { ...this.config, sendMode },
     });
+    this.applyHooks(session);
+    return session;
   }
 
   async resumeSession(id: string, opts?: SessionOptions & { leafId?: string }): Promise<Session> {
@@ -43,6 +48,19 @@ export class Agent {
     if (opts?.leafId && !entries.some((e) => e.id === opts.leafId)) {
       throw new Error(`Entry not found: ${opts.leafId}`);
     }
-    return new Session({ id, entries, leafId, config: { ...this.config, sendMode } });
+    const session = new Session({ id, entries, leafId, config: { ...this.config, sendMode } });
+    this.applyHooks(session);
+    return session;
+  }
+
+  private applyHooks(session: Session): void {
+    if (!this.hooks) return;
+    for (const [event, listener] of Object.entries(this.hooks)) {
+      if (listener == null) continue;
+      const listeners = Array.isArray(listener) ? listener : [listener];
+      for (const fn of listeners) {
+        session.on(event as HookEvent, fn as any);
+      }
+    }
   }
 }

@@ -273,6 +273,69 @@ describe("Session.send", () => {
     ]);
   });
 
+  test("after-tool-call fires with result on success", async () => {
+    const { agent } = createTestAgent(
+      [
+        { toolCalls: [{ id: "call-1", name: "bash", input: { command: "echo hi" } }] },
+        { text: "Done" },
+      ],
+      { tools: [BashTool] },
+    );
+    const session = await agent.createSession();
+
+    const afterEvents: { toolName: string; result?: string; error?: Error }[] = [];
+    session.on("after-tool-call", (e) => {
+      afterEvents.push({ toolName: e.toolName, result: e.result, error: e.error });
+    });
+
+    session.send("Go");
+    await session.waitForIdle();
+
+    expect(afterEvents).toHaveLength(1);
+    expect(afterEvents[0]!.toolName).toBe("bash");
+    expect(afterEvents[0]!.result).toBe("hi\n");
+    expect(afterEvents[0]!.error).toBeUndefined();
+  });
+
+  test("after-tool-call can override result", async () => {
+    const { agent } = createTestAgent(
+      [
+        { toolCalls: [{ id: "call-1", name: "bash", input: { command: "echo original" } }] },
+        { text: "Done" },
+      ],
+      { tools: [BashTool] },
+    );
+    const session = await agent.createSession();
+
+    session.on("after-tool-call", () => ({ result: "replaced" }));
+
+    const toolResults: { output: unknown }[] = [];
+    session.on("tool-result", (e) => {
+      toolResults.push({ output: e.output });
+    });
+
+    session.send("Go");
+    await session.waitForIdle();
+
+    expect(toolResults).toHaveLength(1);
+    expect(toolResults[0]!.output).toBe("replaced");
+  });
+
+  test("before-model-call fires before each model invocation", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const session = await agent.createSession();
+
+    const beforeModelCalls: { system: string | undefined }[] = [];
+    session.on("before-model-call", (e) => {
+      beforeModelCalls.push({ system: e.system });
+    });
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(beforeModelCalls).toHaveLength(1);
+  });
+
   test("first before-tool-call listener to return a decision wins", async () => {
     const { agent } = createTestAgent(
       [{ toolCalls: [{ id: "c1", name: "bash", input: { command: "echo 1" } }] }, { text: "Done" }],

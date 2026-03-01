@@ -1,0 +1,95 @@
+{
+  "name": "agentlayer",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "default": "./dist/agent.js"
+    },
+    "./session": {
+      "types": "./dist/session.d.ts",
+      "default": "./dist/session.js"
+    },
+    "./loop": {
+      "types": "./dist/loop.d.ts",
+      "default": "./dist/loop.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    },
+    "./runtime/node": {
+      "types": "./dist/runtime/node.d.ts",
+      "default": "./dist/runtime/node.js"
+    },
+    "./runtime/sandbox": {
+      "types": "./dist/runtime/sandbox.d.ts",
+      "default": "./dist/runtime/sandbox.js"
+    },
+    "./runtime/just-bash": {
+      "types": "./dist/runtime/just-bash.d.ts",
+      "default": "./dist/runtime/just-bash.js"
+    },
+    "./store/memory": {
+      "types": "./dist/store/memory.d.ts",
+      "default": "./dist/store/memory.js"
+    },
+    "./define-tool": {
+      "types": "./dist/define-tool.d.ts",
+      "default": "./dist/define-tool.js"
+    },
+    "./tools/bash": {
+      "types": "./dist/tools/bash.d.ts",
+      "default": "./dist/tools/bash.js"
+    },
+    "./tools/web-fetch": {
+      "types": "./dist/tools/web-fetch.d.ts",
+      "default": "./dist/tools/web-fetch.js"
+    }
+  },
+  "scripts": {
+    "prepare": "git config --local core.hooksPath .githooks",
+    "build": "tsc -b",
+    "format": "oxfmt",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/provider-utils": "^4.0.13",
+    "ai": "^6.0.68"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.9",
+    "@types/node": "^25.3.3",
+    "@vercel/sandbox": "^1.7.1",
+    "just-bash": "^2.11.5",
+    "oxfmt": "^0.35.0",
+    "typescript": "^5.9.3",
+    "zod": "^4.3.6"
+  },
+  "peerDependencies": {
+    "@vercel/sandbox": ">=1.7.0",
+    "just-bash": ">=2.11.5",
+    "zod": ">=3.25"
+  },
+  "peerDependenciesMeta": {
+    "@vercel/sandbox": {
+      "optional": true
+    },
+    "just-bash": {
+      "optional": true
+    }
+  }
+}

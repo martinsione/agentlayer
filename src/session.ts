@@ -6,6 +6,7 @@ import type {
   SendMode,
   SessionEntry,
   SessionStatus,
+  SessionUsage,
   SessionStore,
   SessionEventMap,
   HookEvent,
@@ -99,6 +100,7 @@ export class Session {
   private readonly config: SessionConfig;
   private listeners = new Map<keyof SessionEventMap, Set<Listener<unknown>>>();
 
+  private _usage: SessionUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
   private steeringQueue: ModelMessage[] = [];
   private followUpQueue: ModelMessage[] = [];
   private completion: Deferred | null = null;
@@ -127,6 +129,10 @@ export class Session {
 
   get status(): SessionStatus {
     return this.completion ? "busy" : "idle";
+  }
+
+  get usage(): SessionUsage {
+    return this._usage;
   }
 
   get model(): LanguageModel {
@@ -299,6 +305,12 @@ export class Session {
                       .filter((p): p is { type: "text"; text: string } => p.type === "text")
                       .map((p) => p.text)
                       .join("");
+
+              if ("usage" in payload) {
+                this._usage.inputTokens += payload.usage.input;
+                this._usage.outputTokens += payload.usage.output;
+                this._usage.totalTokens += payload.usage.input + payload.usage.output;
+              }
             }
 
             await this.emit("message", payload);

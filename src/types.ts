@@ -163,6 +163,13 @@ export type ErrorEvent = { error: Error };
 // Tool progress
 export type ToolProgressEvent = { toolCallId: string; toolName: string; text: string };
 
+// Usage
+export type SessionUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+};
+
 // Status
 export type SessionStatus = "idle" | "busy";
 export type StatusEvent = { status: SessionStatus };

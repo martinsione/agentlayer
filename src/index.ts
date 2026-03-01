@@ -50,6 +50,7 @@ export type {
   BeforeStopDecision,
   TurnEndEvent,
   ErrorEvent,
+  SessionUsage,
   SessionStatus,
   StatusEvent,
   StepStartEvent,

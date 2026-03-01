@@ -23,7 +23,11 @@ type ListenerFor<K extends keyof SessionEventMap> = K extends HookEvent
   ? HookListener<K>
   : (payload: SessionEventMap[K]) => void | Promise<void>;
 
-type Deferred = { promise: Promise<void>; resolve: () => void; reject: (err: Error) => void };
+type Deferred = {
+  promise: Promise<void>;
+  resolve: (value: void | PromiseLike<void>) => void;
+  reject: (reason?: unknown) => void;
+};
 
 type SessionConfig = LoopConfig & { store: SessionStore; sendMode?: SendMode };
 
@@ -222,7 +226,7 @@ export class Session {
     if (!this.completion) {
       // Loop idle — push messages and start the loop
       for (const msg of userMessages) this._messages.push(msg);
-      this.completion = createDeferred();
+      this.completion = Promise.withResolvers();
       this.controller = new AbortController();
       const combinedSignal = opts?.signal
         ? AbortSignal.any([this.controller.signal, opts.signal])
@@ -371,14 +375,4 @@ export class Session {
     }
     return undefined;
   }
-}
-
-function createDeferred(): Deferred {
-  let resolve!: () => void;
-  let reject!: (err: Error) => void;
-  const promise = new Promise<void>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
 }

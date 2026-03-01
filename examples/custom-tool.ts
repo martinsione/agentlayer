@@ -40,9 +40,10 @@ const agent = new Agent({
 const session = await agent.createSession();
 
 session
-  .on("text_delta", (e) => void process.stdout.write(e.delta))
-  .on("tool_call", (e) => console.log(`\n> ${e.name}(${JSON.stringify(e.args)})`))
-  .on("tool_result", (e) => console.log(`[${e.isError ? "error" : "ok"}] ${e.result}\n`));
+  .on("text-delta", (e) => void process.stdout.write(e.text))
+  .on("before-tool-call", (e) => console.log(`\n> ${e.toolName}(${JSON.stringify(e.input)})`))
+  .on("tool-result", (e) => console.log(`[ok] ${e.output}\n`))
+  .on("tool-error", (e) => console.log(`[error] ${e.error}\n`));
 
 session.send("Write a haiku to /tmp/haiku.txt, then read it back to me.");
 await session.waitForIdle();

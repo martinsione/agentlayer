@@ -11,8 +11,8 @@ import type { LoopEvent, SendMode, SessionEntry, SessionStore, Tool } from "../t
 type MockToolCall = { id: string; name: string; input: Record<string, unknown> };
 
 type MockResponse =
-  | { text: string; toolCalls?: undefined }
-  | { text?: string; toolCalls: MockToolCall[] };
+  | { text: string; reasoning?: string; toolCalls?: undefined }
+  | { text?: string; reasoning?: string; toolCalls: MockToolCall[] };
 
 type FinishUsage = Extract<LanguageModelV3StreamPart, { type: "finish" }>["usage"];
 
@@ -30,6 +30,12 @@ export function createMockModel(responses: MockResponse[]) {
       { type: "response-metadata", id: "resp-0", modelId: "mock-model-id", timestamp: new Date(0) },
     ];
 
+    if (r.reasoning) {
+      parts.push({ type: "reasoning-start", id: "reasoning-0" });
+      parts.push({ type: "reasoning-delta", id: "reasoning-0", delta: r.reasoning });
+      parts.push({ type: "reasoning-end", id: "reasoning-0" });
+    }
+
     const text = r.text ?? "";
     if (text) {
       parts.push({ type: "text-start", id: "text-0" });
@@ -39,6 +45,9 @@ export function createMockModel(responses: MockResponse[]) {
 
     if (r.toolCalls) {
       for (const tc of r.toolCalls) {
+        parts.push({ type: "tool-input-start", id: tc.id, toolName: tc.name });
+        parts.push({ type: "tool-input-delta", id: tc.id, delta: JSON.stringify(tc.input) });
+        parts.push({ type: "tool-input-end", id: tc.id });
         parts.push({
           type: "tool-call",
           toolCallId: tc.id,
@@ -122,9 +131,8 @@ export async function drainLoop(
   config: LoopConfig,
 ): Promise<LoopEvent[]> {
   const events: LoopEvent[] = [];
-  const gen = loop(messages, config);
-  for (let result = await gen.next(); !result.done; result = await gen.next()) {
-    events.push(result.value);
+  for await (const event of loop(messages, config)) {
+    events.push(event);
   }
   return events;
 }

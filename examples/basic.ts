@@ -12,7 +12,7 @@ const agent = new Agent({
 });
 
 const session = await agent.createSession();
-session.on("text_delta", (e) => void process.stdout.write(e.delta));
+session.on("text-delta", (e) => void process.stdout.write(e.text));
 
 session.send("How many CPUs does this machine have?");
 await session.waitForIdle();

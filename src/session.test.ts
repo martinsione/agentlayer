@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import type { LanguageModelV3StreamPart } from "@ai-sdk/provider";
 import type { ModelMessage } from "@ai-sdk/provider-utils";
 import { convertArrayToReadableStream } from "@ai-sdk/provider-utils/test";
@@ -14,42 +14,47 @@ import {
   createTestAgent,
 } from "./test/helpers";
 import { BashTool } from "./tools/bash";
-import type { MessageEntry, CompactionEntry, SessionEntry } from "./types";
+import type {
+  MessageEvent,
+  BeforeToolCallEvent,
+  MessageEntry,
+  CompactionEntry,
+  SessionEntry,
+} from "./types";
 
 describe("Session.send", () => {
   test("text-only response", async () => {
     const { agent } = createTestAgent([{ text: "Hello" }]);
     const session = await agent.createSession();
 
-    const messages: ModelMessage[] = [];
+    const userMessages: ModelMessage[] = [];
+    const assistantMessages: { message: ModelMessage; finishReason: string }[] = [];
     const deltas: string[] = [];
-    const steps: { usage: { input: number; output: number }; finishReason: string }[] = [];
     let turnEnd: { messages: ModelMessage[]; text: string } | undefined;
 
     session.on("message", (e) => {
-      messages.push(e.message);
+      if (e.message.role === "user") userMessages.push(e.message);
+      if (e.message.role === "assistant" && "finishReason" in e)
+        assistantMessages.push({ message: e.message, finishReason: e.finishReason });
     });
-    session.on("text_delta", (e) => {
-      deltas.push(e.delta);
+    session.on("text-delta", (e) => {
+      deltas.push(e.text);
     });
-    session.on("step", (e) => {
-      steps.push(e);
-    });
-    session.on("turn_end", (e) => {
+    session.on("turn-end", (e) => {
       turnEnd = e;
     });
 
     session.send("Hi");
     await session.waitForIdle();
 
-    expect(messages).toHaveLength(2);
-    expect(messages[0]!.role).toBe("user");
-    expect(messages[1]!.role).toBe("assistant");
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0]!.role).toBe("user");
+
+    expect(assistantMessages).toHaveLength(1);
+    expect(assistantMessages[0]!.message.role).toBe("assistant");
+    expect(assistantMessages[0]!.finishReason).toBe("stop");
 
     expect(deltas).toEqual(["Hello"]);
-
-    expect(steps).toHaveLength(1);
-    expect(steps[0]!.finishReason).toBe("stop");
 
     expect(turnEnd).toBeDefined();
     expect(turnEnd!.text).toBe("Hello");
@@ -82,35 +87,38 @@ describe("Session.send", () => {
     );
     const session = await agent.createSession();
 
-    const toolCalls: { callId: string; name: string; args: Record<string, unknown> }[] = [];
-    const toolResults: { callId: string; name: string; result: string; isError: boolean }[] = [];
+    const beforeToolCalls: BeforeToolCallEvent[] = [];
+    const toolResults: { output: unknown; toolName: string }[] = [];
     let turnEndText = "";
 
-    session.on("tool_call", (e) => {
-      toolCalls.push(e);
+    session.on("before-tool-call", (e) => {
+      beforeToolCalls.push(e);
     });
-    session.on("tool_result", (e) => {
-      toolResults.push(e);
+    session.on("tool-result", (e) => {
+      toolResults.push({ output: e.output, toolName: e.toolName });
     });
-    session.on("turn_end", (e) => {
+    session.on("turn-end", (e) => {
       turnEndText = e.text;
     });
 
     session.send("Run echo");
     await session.waitForIdle();
 
-    expect(toolCalls).toHaveLength(1);
-    expect(toolCalls[0]).toEqual({ callId: "call-1", name: "bash", args: { command: "echo hi" } });
+    expect(beforeToolCalls).toHaveLength(1);
+    expect(beforeToolCalls[0]).toEqual({
+      toolCallId: "call-1",
+      toolName: "bash",
+      input: { command: "echo hi" },
+    });
 
     expect(toolResults).toHaveLength(1);
-    expect(toolResults[0]!.callId).toBe("call-1");
-    expect(toolResults[0]!.result).toBe("hi\n");
-    expect(toolResults[0]!.isError).toBe(false);
+    expect(toolResults[0]!.toolName).toBe("bash");
+    expect(toolResults[0]!.output).toBe("hi\n");
 
     expect(turnEndText).toBe("Done");
   });
 
-  test("tool call denied", async () => {
+  test("tool call denied via before-tool-call", async () => {
     const { agent } = createTestAgent(
       [
         { toolCalls: [{ id: "call-1", name: "bash", input: { command: "rm -rf /" } }] },
@@ -120,18 +128,17 @@ describe("Session.send", () => {
     );
     const session = await agent.createSession();
 
-    const toolResults: { result: string; isError: boolean }[] = [];
-    session.on("tool_call", () => ({ deny: "blocked" }));
-    session.on("tool_result", (e) => {
-      toolResults.push({ result: e.result, isError: e.isError });
+    const toolErrors: { error: unknown }[] = [];
+    session.on("before-tool-call", () => ({ deny: "blocked" }));
+    session.on("tool-error", (e) => {
+      toolErrors.push({ error: e.error });
     });
 
     session.send("Do something dangerous");
     await session.waitForIdle();
 
-    expect(toolResults).toHaveLength(1);
-    expect(toolResults[0]!.isError).toBe(true);
-    expect(toolResults[0]!.result).toBe("blocked");
+    expect(toolErrors).toHaveLength(1);
+    expect(String(toolErrors[0]!.error)).toContain("blocked");
   });
 
   test("error event fires and send rejects on model failure", async () => {
@@ -162,7 +169,7 @@ describe("Session.send", () => {
     expect(errors).toHaveLength(1);
   });
 
-  test("tool call args override", async () => {
+  test("tool call args override via before-tool-call", async () => {
     const { agent } = createTestAgent(
       [
         { toolCalls: [{ id: "call-1", name: "bash", input: { command: "echo original" } }] },
@@ -172,18 +179,17 @@ describe("Session.send", () => {
     );
     const session = await agent.createSession();
 
-    const toolResults: { result: string; isError: boolean }[] = [];
-    session.on("tool_call", () => ({ args: { command: "echo overridden" } }));
-    session.on("tool_result", (e) => {
-      toolResults.push({ result: e.result, isError: e.isError });
+    const toolResults: { output: unknown }[] = [];
+    session.on("before-tool-call", () => ({ input: { command: "echo overridden" } }));
+    session.on("tool-result", (e) => {
+      toolResults.push({ output: e.output });
     });
 
     session.send("Run something");
     await session.waitForIdle();
 
     expect(toolResults).toHaveLength(1);
-    expect(toolResults[0]!.result).toBe("overridden\n");
-    expect(toolResults[0]!.isError).toBe(false);
+    expect(toolResults[0]!.output).toBe("overridden\n");
   });
 
   test("off removes a listener", async () => {
@@ -191,48 +197,107 @@ describe("Session.send", () => {
     const session = await agent.createSession();
 
     const deltas: string[] = [];
-    const listener = (e: { delta: string }) => {
-      deltas.push(e.delta);
+    const listener = (e: { text: string }) => {
+      deltas.push(e.text);
     };
-    session.on("text_delta", listener);
+    session.on("text-delta", listener);
 
     session.send("First");
     await session.waitForIdle();
-    session.off("text_delta", listener);
+    session.off("text-delta", listener);
     session.send("Second");
     await session.waitForIdle();
 
     expect(deltas).toEqual(["A"]);
   });
 
-  test("first tool_call listener to return a decision wins", async () => {
+  test("turn-start fires before stream events", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const session = await agent.createSession();
+
+    const order: string[] = [];
+    session.on("turn-start", () => {
+      order.push("turn-start");
+    });
+    session.on("text-start", () => {
+      order.push("text-start");
+    });
+    session.on("text-delta", () => {
+      order.push("text-delta");
+    });
+    session.on("message", (e) => {
+      if (e.message.role !== "user") order.push("message");
+    });
+    session.on("turn-end", () => {
+      order.push("turn-end");
+    });
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(order[0]).toBe("turn-start");
+    expect(order).toContain("text-start");
+    expect(order).toContain("text-delta");
+    expect(order).toContain("message");
+    expect(order[order.length - 1]).toBe("turn-end");
+  });
+
+  test("stream events pass through to session listeners", async () => {
+    const { agent } = createTestAgent([{ text: "Hi", reasoning: "Thinking" }]);
+    const session = await agent.createSession();
+
+    const types: string[] = [];
+    for (const event of [
+      "reasoning-start",
+      "reasoning-delta",
+      "reasoning-end",
+      "text-start",
+      "text-delta",
+      "text-end",
+    ] as const) {
+      session.on(event, () => {
+        types.push(event);
+      });
+    }
+
+    session.send("Hello");
+    await session.waitForIdle();
+
+    expect(types).toEqual([
+      "reasoning-start",
+      "reasoning-delta",
+      "reasoning-end",
+      "text-start",
+      "text-delta",
+      "text-end",
+    ]);
+  });
+
+  test("first before-tool-call listener to return a decision wins", async () => {
     const { agent } = createTestAgent(
       [{ toolCalls: [{ id: "c1", name: "bash", input: { command: "echo 1" } }] }, { text: "Done" }],
       { tools: [BashTool] },
     );
     const session = await agent.createSession();
 
-    const toolResults: { result: string; isError: boolean }[] = [];
-    session.on("tool_result", (e) => {
-      toolResults.push({ result: e.result, isError: e.isError });
+    const toolErrors: { error: unknown }[] = [];
+    session.on("tool-error", (e) => {
+      toolErrors.push({ error: e.error });
     });
 
-    session.on("tool_call", () => ({ deny: "first wins" }));
-    session.on("tool_call", () => undefined);
+    session.on("before-tool-call", () => ({ deny: "first wins" }));
+    session.on("before-tool-call", () => undefined);
 
     session.send("Go");
     await session.waitForIdle();
 
-    expect(toolResults).toHaveLength(1);
-    expect(toolResults[0]!.isError).toBe(true);
-    expect(toolResults[0]!.result).toBe("first wins");
+    expect(toolErrors).toHaveLength(1);
+    expect(String(toolErrors[0]!.error)).toContain("first wins");
   });
 });
 
 describe("Session.send modes", () => {
   test("send() while running with mode: steer injects before next model turn", async () => {
-    // Response 1: tool call (slow tool gives us time to inject steer)
-    // Response 2: text after steering injected
     const { agent } = createTestAgent(
       [{ toolCalls: [{ id: "c1", name: "slow", input: {} }] }, { text: "Steered response" }],
       {
@@ -241,9 +306,11 @@ describe("Session.send modes", () => {
     );
     const session = await agent.createSession();
 
-    const allMessages: ModelMessage[] = [];
+    const allUserMessages: ModelMessage[] = [];
+    const allAssistantMessages: ModelMessage[] = [];
     session.on("message", (e) => {
-      allMessages.push(e.message);
+      if (e.message.role === "user") allUserMessages.push(e.message);
+      if (e.message.role === "assistant") allAssistantMessages.push(e.message);
     });
 
     // Start the loop
@@ -256,16 +323,11 @@ describe("Session.send modes", () => {
     await session.waitForIdle();
 
     // Should have: user1, assistant1 (tool call), user2 (steer), assistant2 (steered response)
-    const userMessages = allMessages.filter((m) => m.role === "user");
-    expect(userMessages).toHaveLength(2);
-
-    const assistantMessages = allMessages.filter((m) => m.role === "assistant");
-    expect(assistantMessages).toHaveLength(2);
+    expect(allUserMessages).toHaveLength(2);
+    expect(allAssistantMessages).toHaveLength(2);
   });
 
   test("send() while running with mode: queue processes after current turn", async () => {
-    // Response 1: text (would normally end the turn)
-    // Response 2: text (after queued message processed)
     const { agent } = createTestAgent(
       [
         {
@@ -281,8 +343,8 @@ describe("Session.send modes", () => {
     const session = await agent.createSession();
 
     const deltas: string[] = [];
-    session.on("text_delta", (e) => {
-      deltas.push(e.delta);
+    session.on("text-delta", (e) => {
+      deltas.push(e.text);
     });
 
     // Start the loop
@@ -341,8 +403,8 @@ describe("Session.send modes", () => {
     const session = await agent.createSession();
 
     const deltas: string[] = [];
-    session.on("text_delta", (e) => {
-      deltas.push(e.delta);
+    session.on("text-delta", (e) => {
+      deltas.push(e.text);
     });
 
     session.send("First");
@@ -490,8 +552,8 @@ describe("Session.send modes", () => {
 
     // Now send again — should start a fresh loop, not replay stale messages
     const deltas: string[] = [];
-    session.on("text_delta", (e) => {
-      deltas.push(e.delta);
+    session.on("text-delta", (e) => {
+      deltas.push(e.text);
     });
 
     session.send("Retry");
@@ -519,8 +581,8 @@ describe("Session.send modes", () => {
     const session = await agent.createSession();
 
     const deltas: string[] = [];
-    session.on("text_delta", (e) => {
-      deltas.push(e.delta);
+    session.on("text-delta", (e) => {
+      deltas.push(e.text);
     });
 
     // First loop runs and completes
@@ -578,8 +640,6 @@ describe("buildContext", () => {
   });
 
   test("compaction entry injects summary, keeps entries from firstKeptId onward", () => {
-    // a(old) -> b(old reply) -> c(kept) -> d(kept reply) -> compaction -> e(new)
-    // firstKeptId = "c" means: summarize a+b, keep c+d, then everything after compaction
     const mOld: ModelMessage = { role: "user", content: [{ type: "text", text: "old" }] };
     const mOldReply: ModelMessage = {
       role: "assistant",
@@ -611,7 +671,6 @@ describe("buildContext", () => {
     ];
 
     const result = buildContext(entries, "e");
-    // summary + kept + kept reply + new
     expect(result).toHaveLength(4);
     expect((result[0]!.content as { type: string; text: string }[])[0]!.text).toContain(
       "<summary>Summary of old conversation</summary>",
@@ -622,7 +681,6 @@ describe("buildContext", () => {
   });
 
   test("compaction with no kept entries before it", () => {
-    // All entries before compaction are summarized (firstKeptId doesn't match any)
     const mOld: ModelMessage = { role: "user", content: [{ type: "text", text: "old" }] };
     const mNew: ModelMessage = { role: "user", content: [{ type: "text", text: "new" }] };
 
@@ -642,7 +700,6 @@ describe("buildContext", () => {
     ];
 
     const result = buildContext(entries, "b");
-    // summary + new (old is fully summarized)
     expect(result).toHaveLength(2);
     expect((result[0]!.content as { type: string; text: string }[])[0]!.text).toContain(
       "<summary>Everything summarized</summary>",
@@ -654,11 +711,9 @@ describe("buildContext", () => {
     const m1: ModelMessage = { role: "user", content: [{ type: "text", text: "a" }] };
     const m2: ModelMessage = { role: "assistant", content: [{ type: "text", text: "b" }] };
 
-    // a -> b -> a (cycle)
     const entries: SessionEntry[] = [msgEntry("a", "b", m1), msgEntry("b", "a", m2)];
 
     const result = buildContext(entries, "b");
-    // Should terminate and return whatever partial path it walked
     expect(result.length).toBeLessThanOrEqual(2);
   });
 

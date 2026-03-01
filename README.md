@@ -21,7 +21,7 @@ const agent = new Agent({
 
 const session = await agent.createSession();
 
-session.on("text_delta", (e) => process.stdout.write(e.delta));
+session.on("text-delta", (e) => process.stdout.write(e.text));
 
 session.send("How many CPUs does this machine have?");
 await session.waitForIdle();
@@ -65,15 +65,15 @@ const echo = {
 Approve, deny, or modify tool calls before they execute:
 
 ```ts
-session.on("tool_call", (e) => {
+session.on("before-tool-call", (e) => {
   // Block dangerous commands
-  if (e.name === "bash" && /rm -rf/.test(e.args.command)) {
+  if (e.toolName === "bash" && /rm -rf/.test(e.input.command as string)) {
     return { deny: "Blocked dangerous command" };
   }
 
   // Override arguments
-  if (e.name === "bash") {
-    return { args: { ...e.args, timeout: 5000 } };
+  if (e.toolName === "bash") {
+    return { input: { ...e.input, timeout: 5000 } };
   }
 
   // Return nothing to allow as-is
@@ -95,13 +95,13 @@ const agent = new Agent({
 
 // First run
 const session = await agent.createSession({ id: "my-session" });
-session.on("text_delta", (e) => process.stdout.write(e.delta));
+session.on("text-delta", (e) => process.stdout.write(e.text));
 session.send("What OS is this?");
 await session.waitForIdle();
 
 // Later: resume with full context
 const resumed = await agent.resumeSession("my-session");
-resumed.on("text_delta", (e) => process.stdout.write(e.delta));
+resumed.on("text-delta", (e) => process.stdout.write(e.text));
 resumed.send("And how much RAM does it have?");
 await resumed.waitForIdle();
 ```
@@ -137,30 +137,25 @@ await session.waitForIdle(); // all three processed sequentially
 
 ## Events
 
-7 typed events. All listeners can be async. Only `tool_call` can return a value.
+17 typed events: 12 stream events pass through from the AI SDK, plus 5 framework events. All listeners can be async. Only `before-tool-call` can return a value.
 
 ```ts
-session.on("text_delta", (e) => {
-  process.stdout.write(e.delta);
+// Stream events (from AI SDK)
+session.on("text-delta", (e) => process.stdout.write(e.text));
+session.on("tool-call", (e) => console.log(e.toolName, e.input));
+session.on("tool-result", (e) => console.log(e.toolName, e.output));
+session.on("tool-error", (e) => console.log(e.toolName, e.error));
+
+// Framework events
+session.on("before-tool-call", (e) => {
+  // Return { deny: string } to block, { input } to override, or nothing to allow
 });
 
 session.on("message", (e) => {
   console.log(e.message.role, e.message.content);
 });
 
-session.on("tool_call", (e) => {
-  // Return { deny: string } to block, { args } to override, or nothing to allow
-});
-
-session.on("tool_result", (e) => {
-  console.log(`${e.name} ${e.isError ? "failed" : "done"}`);
-});
-
-session.on("step", (e) => {
-  console.log(`tokens: ${e.usage.input}in / ${e.usage.output}out`);
-});
-
-session.on("turn_end", (e) => {
+session.on("turn-end", (e) => {
   console.log("final text:", e.text);
 });
 
@@ -168,6 +163,8 @@ session.on("error", (e) => {
   console.error(e.error);
 });
 ```
+
+All stream events: `text-start`, `text-delta`, `text-end`, `reasoning-start`, `reasoning-delta`, `reasoning-end`, `tool-input-start`, `tool-input-delta`, `tool-input-end`, `tool-call`, `tool-result`, `tool-error`.
 
 ## Runtimes
 

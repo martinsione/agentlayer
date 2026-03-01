@@ -18,15 +18,15 @@ const agent = new Agent({
   store,
 });
 
-function onDelta(e: { delta: string }) {
-  process.stdout.write(e.delta);
+function onDelta(e: { text: string }) {
+  process.stdout.write(e.text);
 }
 
 // --- First conversation ---
 console.log("--- New session ---\n");
 
 const session = await agent.createSession({ id: "demo" });
-session.on("text_delta", onDelta);
+session.on("text-delta", onDelta);
 
 session.send("What OS is this? Use uname -a.");
 await session.waitForIdle();
@@ -39,7 +39,7 @@ await session.waitForIdle();
 console.log("\n\n--- Resumed session ---\n");
 
 const resumed = await agent.resumeSession("demo");
-resumed.on("text_delta", onDelta);
+resumed.on("text-delta", onDelta);
 
 resumed.send("What did I ask you first?");
 await resumed.waitForIdle();

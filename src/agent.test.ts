@@ -41,8 +41,8 @@ describe("Agent", () => {
     const session = await agent.createSession({ sendMode: "queue" });
 
     const deltas: string[] = [];
-    session.on("text_delta", (e) => {
-      deltas.push(e.delta);
+    session.on("text-delta", (e) => {
+      deltas.push(e.text);
     });
 
     session.send("First");

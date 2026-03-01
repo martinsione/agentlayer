@@ -11,7 +11,7 @@ import type {
 
 type Listener<T> = (event: T) => unknown | Promise<unknown>;
 
-type ListenerFor<K extends keyof SessionEventMap> = K extends "tool_call"
+type ListenerFor<K extends keyof SessionEventMap> = K extends "before-tool-call"
   ? (payload: SessionEventMap[K]) => void | ToolCallDecision | Promise<void | ToolCallDecision>
   : (payload: SessionEventMap[K]) => void | Promise<void>;
 
@@ -175,106 +175,70 @@ export class Session {
     initialUserMessages: ModelMessage[],
   ): Promise<void> {
     const pendingUserMessages: ModelMessage[] = [];
+    const drainQueue = (queue: ModelMessage[]) => {
+      const msgs = queue.splice(0);
+      pendingUserMessages.push(...msgs);
+      return msgs;
+    };
 
     const gen = loop(
       this.messages,
       {
         ...this.config,
-        getSteeringMessages: () => {
-          const msgs = this.steeringQueue.splice(0);
-          pendingUserMessages.push(...msgs);
-          return msgs;
-        },
-        getFollowUpMessages: () => {
-          const msgs = this.followUpQueue.splice(0);
-          pendingUserMessages.push(...msgs);
-          return msgs;
-        },
+        onBeforeToolCall: (event) => this.emitBeforeToolCall(event),
+        getSteeringMessages: () => drainQueue(this.steeringQueue),
+        getFollowUpMessages: () => drainQueue(this.followUpQueue),
       },
       signal,
     );
 
     const turnMessages: ModelMessage[] = [];
     let lastText = "";
-    let lastDecision: ToolCallDecision = undefined;
+
+    const persistUserMessage = async (msg: ModelMessage) => {
+      const entry = this.appendEntry(msg);
+      await this.config.store.append(this.id, entry);
+      turnMessages.push(msg);
+      await this.emit("message", { message: msg as ModelMessage & { role: "user" } });
+    };
 
     try {
-      // Persist and emit initial user messages
-      for (const msg of initialUserMessages) {
-        const entry = this.appendEntry(msg);
-        await this.config.store.append(this.id, entry);
-        turnMessages.push(msg);
-        await this.emit("message", { message: msg });
-      }
+      for (const msg of initialUserMessages) await persistUserMessage(msg);
 
-      for (;;) {
-        const { value: event, done } = await gen.next(lastDecision);
+      await this.emit("turn-start", {});
 
-        // Flush any user messages drained from steering/follow-up queues
-        for (const msg of pendingUserMessages.splice(0)) {
-          const entry = this.appendEntry(msg);
-          await this.config.store.append(this.id, entry);
-          turnMessages.push(msg);
-          await this.emit("message", { message: msg });
-        }
-
-        if (done) break;
-        lastDecision = undefined;
+      for await (const event of gen) {
+        for (const msg of pendingUserMessages.splice(0)) await persistUserMessage(msg);
 
         switch (event.type) {
-          case "text_delta":
-            await this.emit("text_delta", { delta: event.delta });
-            break;
-
           case "message": {
-            const entry = this.appendEntry(event.message);
+            const { type: _, ...payload } = event;
+            const entry = this.appendEntry(payload.message);
             await this.config.store.append(this.id, entry);
-            turnMessages.push(event.message);
-            if (event.message.role === "assistant") {
-              const c = event.message.content;
+            turnMessages.push(payload.message);
+
+            if (payload.message.role === "assistant") {
+              const c = payload.message.content;
               lastText =
                 typeof c === "string"
                   ? c
                   : c
-                      .filter((p) => p.type === "text")
+                      .filter((p): p is { type: "text"; text: string } => p.type === "text")
                       .map((p) => p.text)
                       .join("");
             }
-            await this.emit("message", { message: event.message });
+
+            await this.emit("message", payload);
             break;
           }
 
-          case "tool_call":
-            lastDecision = await this.emitToolCall({
-              callId: event.callId,
-              name: event.name,
-              args: event.args,
-            });
-            break;
-
-          case "tool_result": {
-            const entry = this.appendEntry(event.message);
-            await this.config.store.append(this.id, entry);
-            turnMessages.push(event.message);
-            await this.emit("tool_result", {
-              callId: event.callId,
-              name: event.name,
-              result: event.result,
-              isError: event.isError,
-            });
-            break;
-          }
-
-          case "step":
-            await this.emit("step", {
-              usage: event.usage,
-              finishReason: event.finishReason,
-            });
+          default:
+            await this.emit(event.type as keyof SessionEventMap, event as any);
             break;
         }
       }
 
-      await this.emit("turn_end", { messages: turnMessages, text: lastText });
+      await this.emit("turn-end", { messages: turnMessages, text: lastText });
       this.settle().resolve();
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -304,12 +268,14 @@ export class Session {
     }
   }
 
-  private async emitToolCall(payload: SessionEventMap["tool_call"]): Promise<ToolCallDecision> {
-    const set = this.listeners.get("tool_call");
+  private async emitBeforeToolCall(
+    payload: SessionEventMap["before-tool-call"],
+  ): Promise<ToolCallDecision> {
+    const set = this.listeners.get("before-tool-call");
     if (!set) return undefined;
     for (const listener of set) {
       const result = await listener(payload);
-      if (result && typeof result === "object" && ("deny" in result || "args" in result)) {
+      if (result && typeof result === "object" && ("deny" in result || "input" in result)) {
         return result as ToolCallDecision;
       }
     }

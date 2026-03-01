@@ -21,11 +21,10 @@ const agent = new Agent({
 
 const session = await agent.createSession();
 
-session
-  .on("text-delta", (e) => void process.stdout.write(e.text))
-  .on("before-tool-call", (e) => console.log(`\n> ${e.toolName}(${JSON.stringify(e.input)})`))
-  .on("tool-result", (e) => console.log(`[ok] ${String(e.output).slice(0, 120)}\n`))
-  .on("tool-error", (e) => console.log(`[error] ${String(e.error).slice(0, 120)}\n`));
+session.on("text-delta", (e) => void process.stdout.write(e.text));
+session.on("before-tool-call", (e) => console.log(`\n> ${e.toolName}(${JSON.stringify(e.input)})`));
+session.on("tool-result", (e) => console.log(`[ok] ${String(e.output).slice(0, 120)}\n`));
+session.on("tool-error", (e) => console.log(`[error] ${String(e.error).slice(0, 120)}\n`));
 
 session.send("What OS is this? Use uname -a.");
 await session.waitForIdle();

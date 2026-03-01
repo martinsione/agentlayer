@@ -168,19 +168,16 @@ export class Session {
     return entry;
   }
 
-  on<K extends keyof SessionEventMap>(event: K, listener: ListenerFor<K>): this {
+  on<K extends keyof SessionEventMap>(event: K, listener: ListenerFor<K>): () => void {
     let set = this.listeners.get(event);
     if (!set) {
       set = new Set();
       this.listeners.set(event, set);
     }
     set.add(listener as Listener<unknown>);
-    return this;
-  }
-
-  off<K extends keyof SessionEventMap>(event: K, listener: ListenerFor<K>): this {
-    this.listeners.get(event)?.delete(listener as Listener<unknown>);
-    return this;
+    return () => {
+      set!.delete(listener as Listener<unknown>);
+    };
   }
 
   send(text: string, opts?: { mode?: SendMode; signal?: AbortSignal }): void {

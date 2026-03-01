@@ -197,19 +197,18 @@ describe("Session.send", () => {
     expect(toolResults[0]!.output).toBe("overridden\n");
   });
 
-  test("off removes a listener", async () => {
+  test("unsubscribe removes a listener", async () => {
     const { agent } = createTestAgent([{ text: "A" }, { text: "B" }]);
     const session = await agent.createSession();
 
     const deltas: string[] = [];
-    const listener = (e: { text: string }) => {
+    const unsub = session.on("text-delta", (e) => {
       deltas.push(e.text);
-    };
-    session.on("text-delta", listener);
+    });
 
     session.send("First");
     await session.waitForIdle();
-    session.off("text-delta", listener);
+    unsub();
     session.send("Second");
     await session.waitForIdle();
 

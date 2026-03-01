@@ -39,11 +39,10 @@ const agent = new Agent({
 
 const session = await agent.createSession();
 
-session
-  .on("text-delta", (e) => void process.stdout.write(e.text))
-  .on("before-tool-call", (e) => console.log(`\n> ${e.toolName}(${JSON.stringify(e.input)})`))
-  .on("tool-result", (e) => console.log(`[ok] ${e.output}\n`))
-  .on("tool-error", (e) => console.log(`[error] ${e.error}\n`));
+session.on("text-delta", (e) => void process.stdout.write(e.text));
+session.on("before-tool-call", (e) => console.log(`\n> ${e.toolName}(${JSON.stringify(e.input)})`));
+session.on("tool-result", (e) => console.log(`[ok] ${e.output}\n`));
+session.on("tool-error", (e) => console.log(`[error] ${e.error}\n`));
 
 session.send("Write a haiku to /tmp/haiku.txt, then read it back to me.");
 await session.waitForIdle();

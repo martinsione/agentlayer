@@ -16,27 +16,26 @@ const agent = new Agent({
 
 const session = await agent.createSession();
 
-session
-  .on("text-delta", (e) => void process.stdout.write(e.text))
-  .on("before-tool-call", (e) => {
-    const cmd = e.input.command as string;
+session.on("text-delta", (e) => void process.stdout.write(e.text));
+session.on("before-tool-call", (e) => {
+  const cmd = e.input.command as string;
 
-    // Block destructive commands
-    if (/\brm\s/.test(cmd)) {
-      console.log(`\n[BLOCKED] ${cmd}`);
-      return { deny: "rm is not allowed" };
-    }
+  // Block destructive commands
+  if (/\brm\s/.test(cmd)) {
+    console.log(`\n[BLOCKED] ${cmd}`);
+    return { deny: "rm is not allowed" };
+  }
 
-    // Add a timeout to find commands
-    if (/\bfind\b/.test(cmd) && !e.input.timeout) {
-      console.log(`\n[MODIFIED] added 10s timeout: ${cmd}`);
-      return { input: { ...e.input, timeout: 10 } };
-    }
+  // Add a timeout to find commands
+  if (/\bfind\b/.test(cmd) && !e.input.timeout) {
+    console.log(`\n[MODIFIED] added 10s timeout: ${cmd}`);
+    return { input: { ...e.input, timeout: 10 } };
+  }
 
-    console.log(`\n[ALLOWED] ${cmd}`);
-  })
-  .on("tool-result", (e) => console.log(`[ok] ${String(e.output).slice(0, 120)}\n`))
-  .on("tool-error", (e) => console.log(`[error] ${String(e.error).slice(0, 120)}\n`));
+  console.log(`\n[ALLOWED] ${cmd}`);
+});
+session.on("tool-result", (e) => console.log(`[ok] ${String(e.output).slice(0, 120)}\n`));
+session.on("tool-error", (e) => console.log(`[error] ${String(e.error).slice(0, 120)}\n`));
 
 session.send("Try to delete /tmp/test.txt, then find files in /usr, then show the date.");
 await session.waitForIdle();

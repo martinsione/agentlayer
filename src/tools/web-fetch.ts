@@ -30,26 +30,27 @@ export const WebFetchTool = defineTool({
 
     const contentType = response.headers.get("content-type") ?? "unknown";
     let truncated = false;
+    let text = "";
 
-    const reader = response.body!.getReader();
-    const chunks: Uint8Array[] = [];
-    let totalBytes = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const remaining = DEFAULT_MAX_BYTES - totalBytes;
-      const chunk = value.length > remaining ? value.subarray(0, remaining) : value;
-      chunks.push(chunk);
-      totalBytes += chunk.length;
-      if (totalBytes >= DEFAULT_MAX_BYTES) {
-        truncated = true;
-        reader.cancel();
-        break;
+    if (response.body) {
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let totalBytes = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const remaining = DEFAULT_MAX_BYTES - totalBytes;
+        const chunk = value.length > remaining ? value.subarray(0, remaining) : value;
+        chunks.push(chunk);
+        totalBytes += chunk.length;
+        if (totalBytes >= DEFAULT_MAX_BYTES) {
+          truncated = true;
+          reader.cancel();
+          break;
+        }
       }
+      text = Buffer.concat(chunks).toString("utf-8");
     }
-
-    const merged = Buffer.concat(chunks);
-    const text = merged.toString("utf-8");
 
     let output = `Status: ${response.status} ${response.statusText}\nContent-Type: ${contentType}\n\n${text}`;
     if (truncated) {

@@ -44,6 +44,10 @@ export type {
   BeforeModelCallDecision,
   TurnEndEvent,
   ErrorEvent,
+  SessionStatus,
+  StatusEvent,
+  StepStartEvent,
+  StepEndEvent,
   SessionEventMap,
   LoopEvent,
   // Hook types

@@ -135,9 +135,33 @@ session.send("What is the current uptime?");
 await session.waitForIdle(); // all three processed sequentially
 ```
 
+## Status and abort
+
+Check if the session is busy, listen for status changes, or cancel a running turn:
+
+```ts
+session.status; // "idle" | "busy"
+
+session.on("status", (e) => {
+  console.log(e.status); // "busy" when a turn starts, "idle" when it settles
+});
+
+// Cancel a running turn
+session.abort(); // no-op if idle
+```
+
+## Step events
+
+Each model call within a turn is bracketed by `step-start` / `step-end` events. Useful for showing progress in multi-step tool loops:
+
+```ts
+session.on("step-start", (e) => console.log(`Step ${e.step} starting`));
+session.on("step-end", (e) => console.log(`Step ${e.step} done`));
+```
+
 ## Events
 
-17 typed events: 12 stream events pass through from the AI SDK, plus 5 framework events. All listeners can be async. Only `before-tool-call` can return a value.
+20 typed events: 12 stream events pass through from the AI SDK, plus 8 framework events. All listeners can be async. Only `before-tool-call` can return a value.
 
 ```ts
 // Stream events (from AI SDK)

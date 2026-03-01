@@ -129,6 +129,14 @@ export type MessageEvent =
 export type TurnEndEvent = { messages: ModelMessage[]; text: string };
 export type ErrorEvent = { error: Error };
 
+// Status
+export type SessionStatus = "idle" | "busy";
+export type StatusEvent = { status: SessionStatus };
+
+// Step boundary events
+export type StepStartEvent = { step: number };
+export type StepEndEvent = { step: number };
+
 export type SessionEventMap = {
   // AI SDK stream pass-through (12)
   "text-start": TextStartEvent;
@@ -147,11 +155,14 @@ export type SessionEventMap = {
   "before-tool-call": BeforeToolCallEvent;
   "after-tool-call": AfterToolCallEvent;
   "before-model-call": BeforeModelCallEvent;
-  // Events (4)
+  // Events (7)
   message: MessageEvent;
   "turn-start": TurnStartEvent;
   "turn-end": TurnEndEvent;
   error: ErrorEvent;
+  status: StatusEvent;
+  "step-start": StepStartEvent;
+  "step-end": StepEndEvent;
 };
 
 // Loop events — what the loop yields
@@ -175,7 +186,11 @@ type YieldedStreamPart = Extract<
   { type: (typeof STREAM_EVENT_TYPES)[number] }
 >;
 
-export type LoopEvent = YieldedStreamPart | ({ type: "message" } & MessageEvent);
+export type LoopEvent =
+  | YieldedStreamPart
+  | ({ type: "message" } & MessageEvent)
+  | ({ type: "step-start" } & StepStartEvent)
+  | ({ type: "step-end" } & StepEndEvent);
 
 // Send mode
 export type SendMode = "steer" | "queue";

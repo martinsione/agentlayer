@@ -19,7 +19,14 @@ describe("loop", () => {
     });
 
     const types = events.map((e) => e.type);
-    expect(types).toEqual(["text-start", "text-delta", "text-end", "message"]);
+    expect(types).toEqual([
+      "step-start",
+      "text-start",
+      "text-delta",
+      "text-end",
+      "message",
+      "step-end",
+    ]);
 
     const delta = events.find((e) => e.type === "text-delta")!;
     expect(delta.type).toBe("text-delta");
@@ -367,6 +374,7 @@ describe("loop", () => {
 
     const types = events.map((e) => e.type);
     expect(types).toEqual([
+      "step-start",
       "reasoning-start",
       "reasoning-delta",
       "reasoning-end",
@@ -374,6 +382,7 @@ describe("loop", () => {
       "text-delta",
       "text-end",
       "message",
+      "step-end",
     ]);
 
     const reasoningDelta = events.find((e) => e.type === "reasoning-delta")!;
@@ -462,6 +471,75 @@ describe("loop", () => {
     if (errors[0]?.type === "tool-error") {
       expect(String(errors[0].error)).toContain("boom");
     }
+  });
+});
+
+describe("loop step events", () => {
+  const runtime = new JustBashRuntime();
+
+  test("yields step-start and step-end for a single text-only step", async () => {
+    const model = createMockModel([{ text: "Hello" }]);
+
+    const events = await drainLoop([userMessage("Hi")], {
+      model,
+      tools: [],
+      runtime,
+      maxSteps: 10,
+    });
+
+    const types = events.map((e) => e.type);
+    expect(types[0]).toBe("step-start");
+    expect(types[types.length - 1]).toBe("step-end");
+
+    const stepStart = events.find((e) => e.type === "step-start")!;
+    const stepEnd = events.find((e) => e.type === "step-end")!;
+    if (stepStart.type === "step-start") expect(stepStart.step).toBe(1);
+    if (stepEnd.type === "step-end") expect(stepEnd.step).toBe(1);
+  });
+
+  test("yields incrementing step numbers for multi-step tool loop", async () => {
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "bash", input: { command: "echo 1" } }] },
+      { text: "Done" },
+    ]);
+
+    const events = await drainLoop([userMessage("Hi")], {
+      model,
+      tools: [BashTool],
+      runtime,
+      maxSteps: 10,
+    });
+
+    const stepStarts = events.filter((e) => e.type === "step-start");
+    const stepEnds = events.filter((e) => e.type === "step-end");
+
+    expect(stepStarts).toHaveLength(2);
+    expect(stepEnds).toHaveLength(2);
+
+    if (stepStarts[0]!.type === "step-start") expect(stepStarts[0]!.step).toBe(1);
+    if (stepStarts[1]!.type === "step-start") expect(stepStarts[1]!.step).toBe(2);
+    if (stepEnds[0]!.type === "step-end") expect(stepEnds[0]!.step).toBe(1);
+    if (stepEnds[1]!.type === "step-end") expect(stepEnds[1]!.step).toBe(2);
+  });
+
+  test("step-start comes before stream events, step-end after messages", async () => {
+    const model = createMockModel([{ text: "Hello" }]);
+
+    const events = await drainLoop([userMessage("Hi")], {
+      model,
+      tools: [],
+      runtime,
+      maxSteps: 10,
+    });
+
+    const types = events.map((e) => e.type);
+    const stepStartIdx = types.indexOf("step-start");
+    const textStartIdx = types.indexOf("text-start");
+    const messageIdx = types.indexOf("message");
+    const stepEndIdx = types.indexOf("step-end");
+
+    expect(stepStartIdx).toBeLessThan(textStartIdx);
+    expect(messageIdx).toBeLessThan(stepEndIdx);
   });
 });
 

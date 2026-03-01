@@ -67,7 +67,7 @@
     "build": "tsup",
     "prepublishOnly": "npm run build",
     "format": "oxfmt",
-    "test": "bun test",
+    "test": "bun test src/*.test.ts src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -75,6 +75,7 @@
     "ai": "^6.0.68"
   },
   "devDependencies": {
+    "@opentui/core": "^0.1.84",
     "@types/bun": "^1.3.9",
     "@types/node": "^25.3.3",
     "@vercel/sandbox": "^1.7.1",

@@ -115,6 +115,8 @@ export async function* loop(
     step++;
     if (signal?.aborted) break;
 
+    yield { type: "step-start", step } as LoopEvent;
+
     // Drain point 1: inject steering messages before next model call
     if (getSteeringMessages) {
       const steering = getSteeringMessages();
@@ -155,6 +157,8 @@ export async function* loop(
       }
     }
 
+    if (signal?.aborted) break;
+
     // Get response messages, yield message events
     const [response, usage, finishReason] = await Promise.all([
       result.response,
@@ -179,6 +183,8 @@ export async function* loop(
         };
       }
     }
+
+    yield { type: "step-end", step } as LoopEvent;
 
     // Drain point 3: follow-up messages keep the loop alive
     if (!hasToolCalls) {

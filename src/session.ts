@@ -4,6 +4,7 @@ import type {
   MessageEntry,
   SendMode,
   SessionEntry,
+  SessionStatus,
   SessionStore,
   SessionEventMap,
   HookEvent,
@@ -97,6 +98,7 @@ export class Session {
   private steeringQueue: ModelMessage[] = [];
   private followUpQueue: ModelMessage[] = [];
   private completion: Deferred | null = null;
+  private controller: AbortController | null = null;
 
   constructor(opts: {
     id: string;
@@ -113,6 +115,14 @@ export class Session {
 
   get leafEntryId(): string | null {
     return this._leafId;
+  }
+
+  get status(): SessionStatus {
+    return this.completion ? "busy" : "idle";
+  }
+
+  abort(): void {
+    this.controller?.abort();
   }
 
   private appendEntry(message: ModelMessage): MessageEntry {
@@ -155,7 +165,12 @@ export class Session {
       // Loop idle — push message and start the loop
       this.messages.push(userMessage);
       this.completion = createDeferred();
-      this.runLoop(opts?.signal, [userMessage]);
+      this.controller = new AbortController();
+      const combinedSignal = opts?.signal
+        ? AbortSignal.any([this.controller.signal, opts.signal])
+        : this.controller.signal;
+      this.emit("status", { status: "busy" });
+      this.runLoop(combinedSignal, [userMessage]);
       return;
     }
 
@@ -258,8 +273,10 @@ export class Session {
   private settle(): Deferred {
     const deferred = this.completion!;
     this.completion = null;
+    this.controller = null;
     this.steeringQueue.length = 0;
     this.followUpQueue.length = 0;
+    this.emit("status", { status: "idle" });
     return deferred;
   }
 

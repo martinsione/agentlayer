@@ -20,6 +20,9 @@ import type {
   MessageEntry,
   CompactionEntry,
   SessionEntry,
+  StatusEvent,
+  StepStartEvent,
+  StepEndEvent,
 } from "./types";
 
 describe("Session.send", () => {
@@ -657,6 +660,184 @@ describe("Session.send modes", () => {
     session.send("Hello again");
     await session.waitForIdle();
     expect(deltas).toEqual(["First reply", "Second reply"]);
+  });
+});
+
+describe("Session.status", () => {
+  test("status is idle before send and after completion", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const session = await agent.createSession();
+
+    expect(session.status).toBe("idle");
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(session.status).toBe("idle");
+  });
+
+  test("status is busy while loop is running", async () => {
+    const { agent } = createTestAgent(
+      [{ toolCalls: [{ id: "c1", name: "slow", input: {} }] }, { text: "Done" }],
+      { tools: [createSlowTool()] },
+    );
+    const session = await agent.createSession();
+
+    session.send("Go");
+    // After send, status should be busy
+    expect(session.status).toBe("busy");
+
+    await session.waitForIdle();
+    expect(session.status).toBe("idle");
+  });
+
+  test("status event emits busy then idle", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const session = await agent.createSession();
+
+    const statuses: string[] = [];
+    session.on("status", (e) => {
+      statuses.push(e.status);
+    });
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(statuses).toEqual(["busy", "idle"]);
+  });
+
+  test("status event emits idle on error", async () => {
+    const agent = new Agent({
+      model: createFailingModel(),
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+    });
+    const session = await agent.createSession();
+
+    const statuses: string[] = [];
+    session.on("status", (e) => {
+      statuses.push(e.status);
+    });
+
+    const orig = console.error;
+    console.error = () => {};
+    try {
+      session.send("Hi");
+      await session.waitForIdle();
+    } catch {}
+    console.error = orig;
+
+    expect(statuses).toEqual(["busy", "idle"]);
+  });
+});
+
+describe("Session.abort", () => {
+  test("abort cancels a running turn", async () => {
+    const { agent } = createTestAgent(
+      [{ toolCalls: [{ id: "c1", name: "slow", input: {} }] }, { text: "Never" }],
+      { tools: [createSlowTool("slow", 500)] },
+    );
+    const session = await agent.createSession();
+
+    const errors: Error[] = [];
+    session.on("error", (e) => {
+      errors.push(e.error);
+    });
+
+    session.send("Go");
+    expect(session.status).toBe("busy");
+
+    // Abort after a tick
+    await new Promise((r) => setTimeout(r, 10));
+    session.abort();
+
+    try {
+      await session.waitForIdle();
+    } catch {}
+
+    expect(session.status).toBe("idle");
+  });
+
+  test("abort is a no-op when idle", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const session = await agent.createSession();
+
+    // Should not throw
+    session.abort();
+    expect(session.status).toBe("idle");
+  });
+
+  test("abort works alongside user-provided signal", async () => {
+    const { agent } = createTestAgent(
+      [{ toolCalls: [{ id: "c1", name: "slow", input: {} }] }, { text: "Never" }],
+      { tools: [createSlowTool("slow", 500)] },
+    );
+    const session = await agent.createSession();
+    const externalController = new AbortController();
+
+    session.send("Go", { signal: externalController.signal });
+    expect(session.status).toBe("busy");
+
+    await new Promise((r) => setTimeout(r, 10));
+    session.abort();
+
+    try {
+      await session.waitForIdle();
+    } catch {}
+
+    expect(session.status).toBe("idle");
+  });
+});
+
+describe("Session step events", () => {
+  test("step-start and step-end fire for text-only turn", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const session = await agent.createSession();
+
+    const steps: { type: string; step: number }[] = [];
+    session.on("step-start", (e) => {
+      steps.push({ type: "step-start", step: e.step });
+    });
+    session.on("step-end", (e) => {
+      steps.push({ type: "step-end", step: e.step });
+    });
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(steps).toEqual([
+      { type: "step-start", step: 1 },
+      { type: "step-end", step: 1 },
+    ]);
+  });
+
+  test("step events bracket each model call in multi-step turn", async () => {
+    const { agent } = createTestAgent(
+      [
+        { toolCalls: [{ id: "c1", name: "bash", input: { command: "echo hi" } }] },
+        { text: "Done" },
+      ],
+      { tools: [BashTool] },
+    );
+    const session = await agent.createSession();
+
+    const steps: { type: string; step: number }[] = [];
+    session.on("step-start", (e) => {
+      steps.push({ type: "step-start", step: e.step });
+    });
+    session.on("step-end", (e) => {
+      steps.push({ type: "step-end", step: e.step });
+    });
+
+    session.send("Run echo");
+    await session.waitForIdle();
+
+    expect(steps).toEqual([
+      { type: "step-start", step: 1 },
+      { type: "step-end", step: 1 },
+      { type: "step-start", step: 2 },
+      { type: "step-end", step: 2 },
+    ]);
   });
 });
 

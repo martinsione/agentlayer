@@ -1,7 +1,6 @@
 // Terminal UI chat with streaming, tool calls, and send mode toggling.
 //
-// Run:          bun examples/tui.ts
-// Force light:  THEME=light bun examples/tui.ts
+// Run: bun examples/tui.ts
 
 import {
   createCliRenderer,
@@ -27,37 +26,18 @@ import { WebFetchTool } from "agentlayer/tools/web-fetch";
 import { WriteTool } from "agentlayer/tools/write";
 import type { SendMode } from "agentlayer/types";
 
-// -- Theme --
+// -- Theme (dark only) --
 
-function detectDark(): boolean {
-  const env = process.env.THEME?.toLowerCase();
-  if (env === "light") return false;
-  if (env === "dark") return true;
-  const bg = parseInt(process.env.COLORFGBG?.split(";").pop() ?? "", 10);
-  if (!isNaN(bg)) return bg < 7;
-  return true; // default dark
-}
-
-const dark = detectDark();
-const theme = dark
-  ? {
-      text: "#e0e0e0",
-      muted: "#505050",
-      border: "#282828",
-      borderActive: "#555",
-      placeholder: "#505050",
-      tool: "#a0a0a0",
-      error: "#ff8080",
-    }
-  : {
-      text: "#000",
-      muted: "#999",
-      border: "#ccc",
-      borderActive: "#aaa",
-      placeholder: "#999",
-      tool: "#333",
-      error: "#b30000",
-    };
+const bg = "#0a0a0a";
+const theme = {
+  text: "#e0e0e0",
+  muted: "#505050",
+  border: "#282828",
+  borderActive: "#555",
+  placeholder: "#505050",
+  tool: "#a0a0a0",
+  error: "#ff8080",
+};
 
 const syntaxStyle = SyntaxStyle.fromTheme([
   { scope: ["default"], style: { foreground: theme.text } },
@@ -65,8 +45,8 @@ const syntaxStyle = SyntaxStyle.fromTheme([
     scope: ["markup.heading.1", "markup.heading.2", "markup.heading.3"],
     style: { foreground: theme.text, bold: true },
   },
-  { scope: ["markup.raw"], style: { foreground: dark ? "#a0a0a0" : "#555" } },
-  { scope: ["markup.link.url"], style: { foreground: dark ? "#808080" : "#555" } },
+  { scope: ["markup.raw"], style: { foreground: "#a0a0a0" } },
+  { scope: ["markup.link.url"], style: { foreground: "#808080" } },
   { scope: ["punctuation.special", "markup.list"], style: { foreground: theme.muted } },
 ]);
 
@@ -88,6 +68,7 @@ const root = new BoxRenderable(renderer, {
   width: "100%",
   height: "100%",
   padding: 1,
+  backgroundColor: bg,
 });
 
 const header = new TextRenderable(renderer, {

@@ -7,6 +7,7 @@ import type {
   LoopEvent,
   Tool,
   Runtime,
+  ToolProgressEvent,
   BeforeToolCallEvent,
   ToolCallDecision,
   AfterToolCallEvent,
@@ -30,6 +31,7 @@ export type LoopConfig = {
   runtime: Runtime;
   maxSteps: number;
   hooks?: LoopHooks;
+  onToolProgress?: (event: ToolProgressEvent) => void;
   getSteeringMessages?: () => ModelMessage[];
   getFollowUpMessages?: () => ModelMessage[];
 };
@@ -38,6 +40,7 @@ function buildToolDefs(
   tools: Tool[],
   runtime: Runtime,
   hooks?: LoopHooks,
+  onToolProgress?: LoopConfig["onToolProgress"],
 ): Record<string, unknown> {
   const toolDefs: Record<string, unknown> = {};
   for (const t of tools) {
@@ -57,11 +60,17 @@ function buildToolDefs(
           if (decision && "input" in decision) resolvedInput = decision.input;
         }
 
+        const onProgress = onToolProgress
+          ? (text: string) =>
+              onToolProgress({ toolCallId: options.toolCallId, toolName: t.name, text })
+          : undefined;
+
         let result: string;
         try {
           result = await t.execute(resolvedInput, {
             runtime,
             signal: options.abortSignal,
+            onProgress,
           });
         } catch (err) {
           if (hooks?.afterToolCall) {
@@ -108,7 +117,7 @@ export async function* loop(
     getFollowUpMessages,
   } = config;
 
-  const toolDefs = buildToolDefs(tools, runtime, hooks);
+  const toolDefs = buildToolDefs(tools, runtime, hooks, config.onToolProgress);
   let step = 0;
 
   while (step < maxSteps) {
@@ -131,7 +140,7 @@ export async function* loop(
       if (decision && typeof decision === "object") {
         if ("system" in decision && decision.system !== undefined) system = decision.system;
         if ("tools" in decision && decision.tools !== undefined) {
-          currentToolDefs = buildToolDefs(decision.tools, runtime, hooks);
+          currentToolDefs = buildToolDefs(decision.tools, runtime, hooks, config.onToolProgress);
         }
       }
     }

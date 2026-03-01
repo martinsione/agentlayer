@@ -33,6 +33,7 @@ export type {
   ToolCallStreamEvent,
   ToolResultStreamEvent,
   ToolErrorStreamEvent,
+  ToolProgressEvent,
   // Framework event types
   MessageEvent,
   TurnStartEvent,

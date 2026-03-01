@@ -267,6 +267,11 @@ export function createBashTool(cwd: string, options?: BashToolOptions): Tool {
             const removed = chunks.shift()!;
             chunksBytes -= removed.length;
           }
+
+          // Stream progress to the UI
+          if (ctx.onProgress) {
+            ctx.onProgress(Buffer.concat(chunks).toString("utf-8"));
+          }
         };
 
         ops

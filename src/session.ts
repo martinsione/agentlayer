@@ -207,6 +207,9 @@ export class Session {
           afterToolCall: (e) => this.runHook("after-tool-call", e),
           beforeModelCall: (e) => this.runHook("before-model-call", e),
         },
+        onToolProgress: (e) => {
+          this.emit("tool-progress", e);
+        },
         getSteeringMessages: () => drainQueue(this.steeringQueue),
         getFollowUpMessages: () => drainQueue(this.followUpQueue),
       },

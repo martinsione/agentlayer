@@ -19,7 +19,11 @@ export interface Runtime {
 }
 
 // Tool
-export type ToolContext = { runtime: Runtime; signal?: AbortSignal };
+export type ToolContext = {
+  runtime: Runtime;
+  signal?: AbortSignal;
+  onProgress?: (text: string) => void;
+};
 
 export interface Tool {
   name: string;
@@ -129,6 +133,9 @@ export type MessageEvent =
 export type TurnEndEvent = { messages: ModelMessage[]; text: string };
 export type ErrorEvent = { error: Error };
 
+// Tool progress
+export type ToolProgressEvent = { toolCallId: string; toolName: string; text: string };
+
 // Status
 export type SessionStatus = "idle" | "busy";
 export type StatusEvent = { status: SessionStatus };
@@ -155,12 +162,13 @@ export type SessionEventMap = {
   "before-tool-call": BeforeToolCallEvent;
   "after-tool-call": AfterToolCallEvent;
   "before-model-call": BeforeModelCallEvent;
-  // Events (7)
+  // Events (8)
   message: MessageEvent;
   "turn-start": TurnStartEvent;
   "turn-end": TurnEndEvent;
   error: ErrorEvent;
   status: StatusEvent;
+  "tool-progress": ToolProgressEvent;
   "step-start": StepStartEvent;
   "step-end": StepEndEvent;
 };

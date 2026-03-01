@@ -211,6 +211,8 @@ session.on("text-end", () => {
   md = null;
 });
 
+const toolProgressEls = new Map<string, TextRenderable>();
+
 session.on("tool-call", (e) => {
   const input = e.input as Record<string, unknown> | undefined;
   let label = e.toolName;
@@ -222,6 +224,21 @@ session.on("tool-call", (e) => {
       content: t`${fg(theme.tool)(`  ↳ ${label}`)}`,
     }),
   );
+
+  // Add a progress area for streaming tool output
+  const progress = new TextRenderable(renderer, {
+    id: `tp-${e.toolCallId}`,
+    content: t``,
+  });
+  scroll.add(progress);
+  toolProgressEls.set(e.toolCallId, progress);
+});
+
+session.on("tool-progress", (e) => {
+  const el = toolProgressEls.get(e.toolCallId);
+  if (!el) return;
+  const lines = e.text.split("\n").slice(-5);
+  el.content = t`${fg(theme.muted)(lines.join("\n"))}`;
 });
 
 session.on("error", (e) => {

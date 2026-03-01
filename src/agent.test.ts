@@ -25,6 +25,25 @@ describe("Agent", () => {
     expect(session.id).toBe("my-id");
   });
 
+  test("listSessions returns empty array initially", async () => {
+    const { agent } = createTestAgent([{ text: "Hi" }]);
+    expect(await agent.listSessions()).toEqual([]);
+  });
+
+  test("listSessions returns session IDs after creating sessions", async () => {
+    const { agent } = createTestAgent([{ text: "Hi" }, { text: "Hello" }]);
+    const s1 = await agent.createSession({ id: "sess-a" });
+    s1.send("Hi");
+    await s1.waitForIdle();
+
+    const s2 = await agent.createSession({ id: "sess-b" });
+    s2.send("Hello");
+    await s2.waitForIdle();
+
+    const ids = await agent.listSessions();
+    expect(ids.sort()).toEqual(["sess-a", "sess-b"]);
+  });
+
   test("resumeSession throws if session doesn't exist", async () => {
     const { agent } = createTestAgent([{ text: "Hi" }]);
     expect(agent.resumeSession("nonexistent")).rejects.toThrow("Session not found: nonexistent");

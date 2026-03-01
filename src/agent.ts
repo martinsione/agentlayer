@@ -53,6 +53,10 @@ export class Agent {
     return session;
   }
 
+  async listSessions(): Promise<string[]> {
+    return this.config.store.list();
+  }
+
   private applyHooks(session: Session): void {
     if (!this.hooks) return;
     for (const [event, listener] of Object.entries(this.hooks)) {

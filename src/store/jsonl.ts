@@ -1,4 +1,4 @@
-import { mkdir, appendFile, readFile, access } from "node:fs/promises";
+import { mkdir, appendFile, readFile, readdir, access } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import type { SessionEntry, SessionStore } from "../types";
 
@@ -48,6 +48,16 @@ export class JsonlSessionStore implements SessionStore {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async list(): Promise<string[]> {
+    try {
+      const files = await readdir(this.dir);
+      return files.filter((f) => f.endsWith(".jsonl")).map((f) => f.slice(0, -".jsonl".length));
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw err;
     }
   }
 }

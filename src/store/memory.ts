@@ -19,4 +19,8 @@ export class InMemorySessionStore implements SessionStore {
   async exists(sessionId: string): Promise<boolean> {
     return this.sessions.has(sessionId);
   }
+
+  async list(): Promise<string[]> {
+    return Array.from(this.sessions.keys());
+  }
 }

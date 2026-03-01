@@ -64,6 +64,7 @@ export interface SessionStore {
   load(sessionId: string): Promise<SessionEntry[]>;
   append(sessionId: string, entry: SessionEntry): Promise<void>;
   exists(sessionId: string): Promise<boolean>;
+  list(): Promise<string[]>;
 }
 
 // Stream event types — extracted from AI SDK TextStreamPart

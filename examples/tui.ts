@@ -51,11 +51,11 @@ const theme = dark
     }
   : {
       text: "#000",
-      muted: "#777",
+      muted: "#555",
       border: "#bbb",
       borderActive: "#666",
-      placeholder: "#777",
-      tool: "#555",
+      placeholder: "#666",
+      tool: "#444",
       error: "#b30000",
     };
 

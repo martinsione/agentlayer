@@ -42,6 +42,7 @@ export type LoopConfig = {
   getFollowUpMessages?: () => ModelMessage[];
   thinkingLevel?: ThinkingLevel;
   thinkingBudgets?: ThinkingBudgets;
+  transformContext?: (messages: ModelMessage[]) => ModelMessage[] | Promise<ModelMessage[]>;
 };
 
 const DEFAULT_THINKING_BUDGETS: Required<ThinkingBudgets> = {
@@ -189,11 +190,14 @@ export async function* loop(
     }
 
     const budget = getThinkingBudget(config.thinkingLevel, config.thinkingBudgets);
+    const contextMessages = config.transformContext
+      ? await config.transformContext([...msgs])
+      : msgs;
 
     const result = streamText({
       model,
       system,
-      messages: msgs,
+      messages: contextMessages,
       tools: currentToolDefs as Parameters<typeof streamText>[0]["tools"],
       stopWhen: stepCountIs(1),
       abortSignal: signal,

@@ -260,4 +260,6 @@ export type AgentOptions = {
   hooks?: AgentHooks;
   thinkingLevel?: ThinkingLevel;
   thinkingBudgets?: ThinkingBudgets;
+  /** Transform the message context before each model call (e.g. pruning, compaction). */
+  transformContext?: (messages: ModelMessage[]) => ModelMessage[] | Promise<ModelMessage[]>;
 };

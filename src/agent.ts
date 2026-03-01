@@ -23,6 +23,7 @@ export class Agent {
       maxSteps: config.maxSteps ?? DEFAULT_MAX_STEPS,
       thinkingLevel: config.thinkingLevel,
       thinkingBudgets: config.thinkingBudgets,
+      transformContext: config.transformContext,
     };
   }
 

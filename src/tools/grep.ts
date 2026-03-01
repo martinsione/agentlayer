@@ -1,0 +1,77 @@
+/**
+ * Grep tool — search file contents using grep -rn.
+ *
+ * Delegates execution to `ctx.runtime.exec()` to run `grep`.
+ * Returns matched lines with file:line prefix, truncated to 50KB.
+ */
+
+import { resolve } from "node:path";
+import { z } from "zod/v4";
+import { defineTool } from "../define-tool";
+import type { Tool } from "../types";
+
+const MAX_BYTES = 50 * 1024; // 50KB
+
+const schema = z.object({
+  pattern: z.string().describe("Regex pattern to search for"),
+  path: z
+    .string()
+    .optional()
+    .describe("File or directory to search in (defaults to working directory)"),
+  glob: z.string().optional().describe("File pattern filter (e.g. *.ts)"),
+});
+
+export function createGrepTool(cwd: string): Tool {
+  return defineTool({
+    name: "grep",
+    description:
+      "Search file contents for a regex pattern using grep -rn. Returns matched lines with file:line prefix, truncated to 50KB.",
+    schema,
+    execute: async (input, ctx) => {
+      const searchPath = input.path ? resolve(cwd, input.path) : cwd;
+
+      // Build the grep command
+      const args: string[] = ["-rn"];
+      if (input.glob) {
+        args.push("--include", `'${input.glob}'`);
+      }
+      // Use -- to separate pattern from path to avoid issues with patterns starting with -
+      args.push("--", `'${input.pattern}'`, `'${searchPath}'`);
+
+      const command = `grep ${args.join(" ")}`;
+
+      try {
+        const result = await ctx.runtime.exec(command, { cwd });
+        const output = result.stdout;
+
+        if (!output.trim()) {
+          return "No matches found.";
+        }
+
+        const bytes = Buffer.byteLength(output, "utf-8");
+        if (bytes > MAX_BYTES) {
+          const truncated = Buffer.from(output, "utf-8").subarray(0, MAX_BYTES).toString("utf-8");
+          // Trim to last complete line
+          const lastNewline = truncated.lastIndexOf("\n");
+          const clean = lastNewline > 0 ? truncated.slice(0, lastNewline) : truncated;
+          return `${clean}\n\n[Output truncated: ${bytes} bytes total, showing first 50KB]`;
+        }
+
+        return output.trimEnd();
+      } catch (err) {
+        // grep exits with code 1 when no matches are found
+        if (err instanceof Error && err.message.includes("exit code 1")) {
+          return "No matches found.";
+        }
+        // grep exit code 1 is embedded in the error message from BashTool-style exec
+        if (err instanceof Error && err.message.includes("exited with code 1")) {
+          return "No matches found.";
+        }
+        throw err;
+      }
+    },
+  });
+}
+
+/** Default grep tool using process.cwd(). */
+export const GrepTool = createGrepTool(process.cwd());

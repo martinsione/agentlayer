@@ -64,6 +64,22 @@
     "./tools/task": {
       "types": "./dist/tools/task.d.ts",
       "default": "./dist/tools/task.js"
+    },
+    "./tools/read": {
+      "types": "./dist/tools/read.d.ts",
+      "default": "./dist/tools/read.js"
+    },
+    "./tools/write": {
+      "types": "./dist/tools/write.d.ts",
+      "default": "./dist/tools/write.js"
+    },
+    "./tools/glob": {
+      "types": "./dist/tools/glob.d.ts",
+      "default": "./dist/tools/glob.js"
+    },
+    "./tools/grep": {
+      "types": "./dist/tools/grep.d.ts",
+      "default": "./dist/tools/grep.js"
     }
   },
   "scripts": {

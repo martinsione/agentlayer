@@ -5,6 +5,7 @@ import { convertArrayToReadableStream } from "@ai-sdk/provider-utils/test";
 import { MockLanguageModelV3 } from "ai/test";
 import { Agent } from "./agent";
 import { JustBashRuntime } from "./runtime/just-bash";
+import { buildContext } from "./session";
 import { InMemorySessionStore } from "./store/memory";
 import {
   createFailingModel,
@@ -13,6 +14,7 @@ import {
   createTestAgent,
 } from "./test/helpers";
 import { BashTool } from "./tools/bash";
+import type { MessageEntry, CompactionEntry, SessionEntry } from "./types";
 
 describe("Session.send", () => {
   test("text-only response", async () => {
@@ -514,5 +516,149 @@ describe("Session.send modes", () => {
     session.send("Hello again");
     await session.waitForIdle();
     expect(deltas).toEqual(["First reply", "Second reply"]);
+  });
+});
+
+describe("buildContext", () => {
+  function msgEntry(id: string, parentId: string | null, message: ModelMessage): MessageEntry {
+    return { type: "message", id, parentId, timestamp: Date.now(), message };
+  }
+
+  test("returns empty array for null leafId", () => {
+    expect(buildContext([], null)).toEqual([]);
+  });
+
+  test("returns empty array for empty entries", () => {
+    expect(buildContext([], "some-id")).toEqual([]);
+  });
+
+  test("linear chain returns messages in root-to-leaf order", () => {
+    const m1: ModelMessage = { role: "user", content: [{ type: "text", text: "hi" }] };
+    const m2: ModelMessage = { role: "assistant", content: [{ type: "text", text: "hello" }] };
+    const m3: ModelMessage = { role: "user", content: [{ type: "text", text: "bye" }] };
+
+    const entries: SessionEntry[] = [
+      msgEntry("a", null, m1),
+      msgEntry("b", "a", m2),
+      msgEntry("c", "b", m3),
+    ];
+
+    expect(buildContext(entries, "c")).toEqual([m1, m2, m3]);
+  });
+
+  test("branching — selecting a mid-tree leaf returns only that path", () => {
+    const m1: ModelMessage = { role: "user", content: [{ type: "text", text: "root" }] };
+    const m2: ModelMessage = { role: "assistant", content: [{ type: "text", text: "branch-a" }] };
+    const m3: ModelMessage = { role: "assistant", content: [{ type: "text", text: "branch-b" }] };
+
+    const entries: SessionEntry[] = [
+      msgEntry("root", null, m1),
+      msgEntry("a", "root", m2),
+      msgEntry("b", "root", m3),
+    ];
+
+    expect(buildContext(entries, "a")).toEqual([m1, m2]);
+    expect(buildContext(entries, "b")).toEqual([m1, m3]);
+  });
+
+  test("compaction entry injects summary, keeps entries from firstKeptId onward", () => {
+    // a(old) -> b(old reply) -> c(kept) -> d(kept reply) -> compaction -> e(new)
+    // firstKeptId = "c" means: summarize a+b, keep c+d, then everything after compaction
+    const mOld: ModelMessage = { role: "user", content: [{ type: "text", text: "old" }] };
+    const mOldReply: ModelMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "old reply" }],
+    };
+    const mKept: ModelMessage = { role: "user", content: [{ type: "text", text: "kept" }] };
+    const mKeptReply: ModelMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "kept reply" }],
+    };
+    const mNew: ModelMessage = { role: "user", content: [{ type: "text", text: "new" }] };
+
+    const compaction: CompactionEntry = {
+      type: "compaction",
+      id: "compact",
+      parentId: "d",
+      timestamp: Date.now(),
+      summary: "Summary of old conversation",
+      firstKeptId: "c",
+    };
+
+    const entries: SessionEntry[] = [
+      msgEntry("a", null, mOld),
+      msgEntry("b", "a", mOldReply),
+      msgEntry("c", "b", mKept),
+      msgEntry("d", "c", mKeptReply),
+      compaction,
+      msgEntry("e", "compact", mNew),
+    ];
+
+    const result = buildContext(entries, "e");
+    // summary + kept + kept reply + new
+    expect(result).toHaveLength(4);
+    expect((result[0]!.content as { type: string; text: string }[])[0]!.text).toContain(
+      "<summary>Summary of old conversation</summary>",
+    );
+    expect(result[1]).toEqual(mKept);
+    expect(result[2]).toEqual(mKeptReply);
+    expect(result[3]).toEqual(mNew);
+  });
+
+  test("compaction with no kept entries before it", () => {
+    // All entries before compaction are summarized (firstKeptId doesn't match any)
+    const mOld: ModelMessage = { role: "user", content: [{ type: "text", text: "old" }] };
+    const mNew: ModelMessage = { role: "user", content: [{ type: "text", text: "new" }] };
+
+    const compaction: CompactionEntry = {
+      type: "compaction",
+      id: "compact",
+      parentId: "a",
+      timestamp: Date.now(),
+      summary: "Everything summarized",
+      firstKeptId: "nonexistent",
+    };
+
+    const entries: SessionEntry[] = [
+      msgEntry("a", null, mOld),
+      compaction,
+      msgEntry("b", "compact", mNew),
+    ];
+
+    const result = buildContext(entries, "b");
+    // summary + new (old is fully summarized)
+    expect(result).toHaveLength(2);
+    expect((result[0]!.content as { type: string; text: string }[])[0]!.text).toContain(
+      "<summary>Everything summarized</summary>",
+    );
+    expect(result[1]).toEqual(mNew);
+  });
+
+  test("cycle in parentId does not hang", () => {
+    const m1: ModelMessage = { role: "user", content: [{ type: "text", text: "a" }] };
+    const m2: ModelMessage = { role: "assistant", content: [{ type: "text", text: "b" }] };
+
+    // a -> b -> a (cycle)
+    const entries: SessionEntry[] = [msgEntry("a", "b", m1), msgEntry("b", "a", m2)];
+
+    const result = buildContext(entries, "b");
+    // Should terminate and return whatever partial path it walked
+    expect(result.length).toBeLessThanOrEqual(2);
+  });
+
+  test("single entry (leaf is root)", () => {
+    const m: ModelMessage = { role: "user", content: [{ type: "text", text: "only" }] };
+    const entries: SessionEntry[] = [msgEntry("a", null, m)];
+    expect(buildContext(entries, "a")).toEqual([m]);
+  });
+
+  test("leafEntryId getter exposes current leaf", async () => {
+    const { agent } = createTestAgent([{ text: "Hi" }]);
+    const session = await agent.createSession();
+    expect(session.leafEntryId).toBeNull();
+
+    session.send("Hello");
+    await session.waitForIdle();
+    expect(session.leafEntryId).toBeTruthy();
   });
 });

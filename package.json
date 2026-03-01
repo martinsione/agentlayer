@@ -46,6 +46,10 @@
       "types": "./dist/store/memory.d.ts",
       "default": "./dist/store/memory.js"
     },
+    "./store/jsonl": {
+      "types": "./dist/store/jsonl.d.ts",
+      "default": "./dist/store/jsonl.js"
+    },
     "./define-tool": {
       "types": "./dist/define-tool.d.ts",
       "default": "./dist/define-tool.js"

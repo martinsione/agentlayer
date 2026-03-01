@@ -1,6 +1,13 @@
 import type { ModelMessage } from "@ai-sdk/provider-utils";
 import { loop, type LoopConfig } from "./loop";
-import type { SendMode, SessionStore, SessionEventMap, ToolCallDecision } from "./types";
+import type {
+  MessageEntry,
+  SendMode,
+  SessionEntry,
+  SessionStore,
+  SessionEventMap,
+  ToolCallDecision,
+} from "./types";
 
 type Listener<T> = (event: T) => unknown | Promise<unknown>;
 
@@ -12,8 +19,75 @@ type Deferred = { promise: Promise<void>; resolve: () => void; reject: (err: Err
 
 type SessionConfig = LoopConfig & { store: SessionStore; sendMode?: SendMode };
 
+export function buildContext(entries: SessionEntry[], leafId: string | null): ModelMessage[] {
+  if (leafId === null || entries.length === 0) return [];
+
+  const index = new Map<string, SessionEntry>();
+  for (const e of entries) index.set(e.id, e);
+
+  // Walk from leaf to root (with cycle detection)
+  const path: SessionEntry[] = [];
+  const visited = new Set<string>();
+  let current: SessionEntry | undefined = index.get(leafId);
+  while (current) {
+    if (visited.has(current.id)) break;
+    visited.add(current.id);
+    path.push(current);
+    current = current.parentId ? index.get(current.parentId) : undefined;
+  }
+  path.reverse();
+
+  // Find most recent compaction entry on the path
+  let compactionIdx = -1;
+  for (let i = path.length - 1; i >= 0; i--) {
+    if (path[i]!.type === "compaction") {
+      compactionIdx = i;
+      break;
+    }
+  }
+
+  const messages: ModelMessage[] = [];
+  if (compactionIdx >= 0) {
+    const compaction = path[compactionIdx] as SessionEntry & { type: "compaction" };
+
+    // 1. Emit summary
+    messages.push({
+      role: "user",
+      content: [{ type: "text", text: `<summary>${compaction.summary}</summary>` }],
+    });
+
+    // 2. Emit kept messages before compaction (from firstKeptId onward)
+    let foundFirstKept = false;
+    for (let i = 0; i < compactionIdx; i++) {
+      const entry = path[i]!;
+      if (entry.id === compaction.firstKeptId) foundFirstKept = true;
+      if (foundFirstKept && entry.type === "message") {
+        messages.push(entry.message);
+      }
+    }
+
+    // 3. Emit all messages after compaction
+    for (let i = compactionIdx + 1; i < path.length; i++) {
+      const entry = path[i]!;
+      if (entry.type === "message") {
+        messages.push(entry.message);
+      }
+    }
+  } else {
+    for (const entry of path) {
+      if (entry.type === "message") {
+        messages.push(entry.message);
+      }
+    }
+  }
+
+  return messages;
+}
+
 export class Session {
   readonly id: string;
+  private entries: SessionEntry[];
+  private _leafId: string | null;
   private messages: ModelMessage[];
   private readonly config: SessionConfig;
   private listeners = new Map<keyof SessionEventMap, Set<Listener<unknown>>>();
@@ -22,10 +96,34 @@ export class Session {
   private followUpQueue: ModelMessage[] = [];
   private completion: Deferred | null = null;
 
-  constructor(id: string, messages: ModelMessage[], config: SessionConfig) {
-    this.id = id;
-    this.messages = messages;
-    this.config = config;
+  constructor(opts: {
+    id: string;
+    entries: SessionEntry[];
+    leafId: string | null;
+    config: SessionConfig;
+  }) {
+    this.id = opts.id;
+    this.entries = opts.entries;
+    this._leafId = opts.leafId;
+    this.messages = buildContext(opts.entries, opts.leafId);
+    this.config = opts.config;
+  }
+
+  get leafEntryId(): string | null {
+    return this._leafId;
+  }
+
+  private appendEntry(message: ModelMessage): MessageEntry {
+    const entry: MessageEntry = {
+      type: "message",
+      id: crypto.randomUUID(),
+      parentId: this._leafId,
+      timestamp: Date.now(),
+      message,
+    };
+    this.entries.push(entry);
+    this._leafId = entry.id;
+    return entry;
   }
 
   on<K extends keyof SessionEventMap>(event: K, listener: ListenerFor<K>): this {
@@ -103,7 +201,8 @@ export class Session {
     try {
       // Persist and emit initial user messages
       for (const msg of initialUserMessages) {
-        await this.config.store.append(this.id, msg);
+        const entry = this.appendEntry(msg);
+        await this.config.store.append(this.id, entry);
         turnMessages.push(msg);
         await this.emit("message", { message: msg });
       }
@@ -113,7 +212,8 @@ export class Session {
 
         // Flush any user messages drained from steering/follow-up queues
         for (const msg of pendingUserMessages.splice(0)) {
-          await this.config.store.append(this.id, msg);
+          const entry = this.appendEntry(msg);
+          await this.config.store.append(this.id, entry);
           turnMessages.push(msg);
           await this.emit("message", { message: msg });
         }
@@ -126,8 +226,9 @@ export class Session {
             await this.emit("text_delta", { delta: event.delta });
             break;
 
-          case "message":
-            await this.config.store.append(this.id, event.message);
+          case "message": {
+            const entry = this.appendEntry(event.message);
+            await this.config.store.append(this.id, entry);
             turnMessages.push(event.message);
             if (event.message.role === "assistant") {
               const c = event.message.content;
@@ -141,6 +242,7 @@ export class Session {
             }
             await this.emit("message", { message: event.message });
             break;
+          }
 
           case "tool_call":
             lastDecision = await this.emitToolCall({
@@ -150,8 +252,9 @@ export class Session {
             });
             break;
 
-          case "tool_result":
-            await this.config.store.append(this.id, event.message);
+          case "tool_result": {
+            const entry = this.appendEntry(event.message);
+            await this.config.store.append(this.id, entry);
             turnMessages.push(event.message);
             await this.emit("tool_result", {
               callId: event.callId,
@@ -160,6 +263,7 @@ export class Session {
               isError: event.isError,
             });
             break;
+          }
 
           case "step":
             await this.emit("step", {

@@ -1,4 +1,4 @@
-// Minimal TUI showing an agent chat loop with streaming and tool calls.
+// Terminal UI chat with streaming, tool calls, and send mode toggling.
 //
 // Run:          bun examples/tui.ts
 // Force light:  THEME=light bun examples/tui.ts
@@ -20,44 +20,25 @@ import {
 } from "@opentui/core";
 import { Agent } from "agentlayer";
 import { BashTool } from "agentlayer/tools/bash";
+import { GlobTool } from "agentlayer/tools/glob";
+import { GrepTool } from "agentlayer/tools/grep";
+import { ReadTool } from "agentlayer/tools/read";
 import { WebFetchTool } from "agentlayer/tools/web-fetch";
+import { WriteTool } from "agentlayer/tools/write";
 import type { SendMode } from "agentlayer/types";
 
-// -- Agent setup --
+// -- Theme --
 
-const agent = new Agent({
-  // model: "moonshotai/kimi-k2.5",
-  model: "openai/gpt-oss-120b",
-  systemPrompt: `You are a helpful assistant. Use tools when needed. Be concise. The current date is ${new Date().toISOString().slice(0, 10)}. Always use this date for any time-sensitive queries.`,
-  tools: [BashTool, WebFetchTool],
-});
-
-// -- TUI layout --
-
-const renderer = await createCliRenderer({ exitOnCtrlC: true, targetFps: 30 });
-
-// renderer.themeMode is null until the terminal responds to the OSC query.
-// Wait briefly for the async response before falling back.
-await Promise.race([
-  new Promise<void>((r) => renderer.on("theme_mode", () => r())),
-  new Promise<void>((r) => setTimeout(r, 150)),
-]);
-
-// COLORFGBG ("fg;bg") works inside tmux where OSC queries may fail.
-// THEME=light/dark is a manual escape hatch.
 function detectDark(): boolean {
   const env = process.env.THEME?.toLowerCase();
   if (env === "light") return false;
   if (env === "dark") return true;
   const bg = parseInt(process.env.COLORFGBG?.split(";").pop() ?? "", 10);
   if (!isNaN(bg)) return bg < 7;
-  return renderer.themeMode !== "light";
+  return true; // default dark
 }
 
 const dark = detectDark();
-
-// opentui defaults all foreground text to #fff, so every element needs an
-// explicit color — we can't rely on "terminal native" foreground.
 const theme = dark
   ? {
       text: "#e0e0e0",
@@ -78,8 +59,6 @@ const theme = dark
       error: "#b30000",
     };
 
-// SyntaxStyle.create() registers zero styles — MarkdownRenderable text falls
-// back to opentui's hardcoded #fff. Register "default" so body text is visible.
 const syntaxStyle = SyntaxStyle.fromTheme([
   { scope: ["default"], style: { foreground: theme.text } },
   {
@@ -90,6 +69,18 @@ const syntaxStyle = SyntaxStyle.fromTheme([
   { scope: ["markup.link.url"], style: { foreground: dark ? "#808080" : "#555" } },
   { scope: ["punctuation.special", "markup.list"], style: { foreground: theme.muted } },
 ]);
+
+// -- Agent --
+
+const agent = new Agent({
+  model: "anthropic/claude-sonnet-4-20250514",
+  systemPrompt: `You are a helpful assistant. Use tools when needed. Be concise. The current date is ${new Date().toISOString().slice(0, 10)}.`,
+  tools: [BashTool, ReadTool, WriteTool, GlobTool, GrepTool, WebFetchTool],
+});
+
+// -- Layout --
+
+const renderer = await createCliRenderer({ exitOnCtrlC: true, targetFps: 30 });
 
 const root = new BoxRenderable(renderer, {
   id: "root",
@@ -160,6 +151,8 @@ root.add(inputBox);
 root.add(modeLabel);
 renderer.root.add(root);
 
+// -- Session events --
+
 const session = await agent.createSession();
 
 let md: MarkdownRenderable | null = null;
@@ -216,8 +209,10 @@ const toolProgressEls = new Map<string, TextRenderable>();
 session.on("tool-call", (e) => {
   const input = e.input as Record<string, unknown> | undefined;
   let label = e.toolName;
-  if (e.toolName === "web_fetch" && input?.url) label += ` ${input.url}`;
-  if (e.toolName === "bash" && input?.command) label += ` ${input.command}`;
+  if (input?.url) label += ` ${input.url}`;
+  else if (input?.command) label += ` ${input.command}`;
+  else if (input?.path) label += ` ${input.path}`;
+  else if (input?.pattern) label += ` ${input.pattern}`;
   scroll.add(
     new TextRenderable(renderer, {
       id: `tc-${e.toolCallId}`,
@@ -225,7 +220,6 @@ session.on("tool-call", (e) => {
     }),
   );
 
-  // Add a progress area for streaming tool output
   const progress = new TextRenderable(renderer, {
     id: `tp-${e.toolCallId}`,
     content: t``,
@@ -250,7 +244,6 @@ session.on("error", (e) => {
   );
 });
 
-// Promote queued messages to scroll when the session processes them.
 session.on("message", (e) => {
   if (e.message.role !== "user" || pendingQueue.length === 0) return;
   const entry = pendingQueue.shift()!;
@@ -264,12 +257,13 @@ session.on("message", (e) => {
   );
 });
 
+// -- Input handling --
+
 input.on(InputRenderableEvents.ENTER, (value: string) => {
   if (!value.trim()) return;
   input.value = "";
 
   if (session.status === "busy" && sendMode === "queue") {
-    // Show as pending above input, promote when processed.
     const id = `q-${crypto.randomUUID()}`;
     pendingQueue.push({ text: value, id });
     queueArea.add(

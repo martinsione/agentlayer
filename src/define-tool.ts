@@ -31,11 +31,13 @@ export function defineTool<TSchema extends ZodObjectSchema>(opts: {
   description: string;
   schema: TSchema;
   execute: (input: z.infer<TSchema>, ctx: ToolContext) => ToolExecuteReturn;
-}): Tool {
+  needsApproval?: boolean | ((input: z.infer<TSchema>) => boolean);
+}): Tool<z.infer<TSchema>> {
   return {
     name: opts.name,
     description: opts.description,
     parameters: z.toJSONSchema(opts.schema, { target: "draft-7" }) as Record<string, unknown>,
-    execute: opts.execute as Tool["execute"],
+    execute: opts.execute as Tool<z.infer<TSchema>>["execute"],
+    needsApproval: opts.needsApproval,
   };
 }

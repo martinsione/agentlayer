@@ -45,14 +45,18 @@ export type ToolExecuteReturn =
   | Promise<string | ToolResult>
   | AsyncGenerator<string, string | ToolResult>;
 
-export interface Tool {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface Tool<TInput = any> {
   name: string;
   description: string;
   parameters: Record<string, unknown>; // JSON Schema
-  execute(input: Record<string, unknown>, ctx: ToolContext): ToolExecuteReturn;
+  execute(input: TInput, ctx: ToolContext): ToolExecuteReturn;
   /** When true, the before-tool-call hook fires with needsApproval: true. */
-  needsApproval?: boolean | ((input: Record<string, unknown>) => boolean);
+  needsApproval?: boolean | ((input: TInput) => boolean);
 }
+
+/** A collection of tools with potentially different input types. */
+export type Tools = Tool[];
 
 // Session entries — tree-based model with id/parentId on every entry
 export type SessionEntryBase = {

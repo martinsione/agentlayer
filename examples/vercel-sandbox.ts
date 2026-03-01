@@ -6,7 +6,6 @@ import { Agent } from "../src/agent";
 import { VercelSandboxRuntime } from "../src/runtime/vercel-sandbox";
 import { InMemorySessionStore } from "../src/store/memory";
 import { BashTool } from "../src/tools/bash";
-import { WebFetchTool } from "../src/tools/web-fetch";
 
 async function getOrCreateSandbox() {
   const lockFilePath = path.join(
@@ -30,41 +29,82 @@ async function getOrCreateSandbox() {
 }
 
 const sandbox = await getOrCreateSandbox();
+console.log(`sandboxId: ${sandbox.sandboxId}\n`);
 
-console.log(`sandboxId: ${sandbox.sandboxId}`);
+const runtime = new VercelSandboxRuntime({ sandbox });
 
-const agent = new Agent({
+// ---------------------------------------------------------------------------
+// Steer mode (default): interrupt a running turn with a new instruction.
+// The agent is doing work (running `find`), but we steer it mid-turn to
+// do something else instead. The steering message skips pending tool calls
+// and injects before the next model turn.
+// ---------------------------------------------------------------------------
+console.log("=== STEER MODE ===\n");
+
+const steerAgent = new Agent({
   systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
   model: "moonshotai/kimi-k2.5",
-  runtime: new VercelSandboxRuntime({ sandbox }),
+  runtime,
   store: new InMemorySessionStore(),
-  tools: [BashTool, WebFetchTool],
+  tools: [BashTool],
 });
 
-const session = await agent.createSession();
+const steerSession = await steerAgent.createSession();
 
-session
-  .on("message", ({ message }) => {
-    switch (message.role) {
-      case "assistant":
-        console.log(`\n[message: ${message.role}] ${JSON.stringify(message.content)}`);
-        break;
-      case "user":
-        console.log(`\n[message: ${message.role}] ${JSON.stringify(message.content)}`);
-        break;
-      default:
-        break;
-    }
+steerSession
+  .on("text_delta", ({ delta }) => {
+    process.stdout.write(delta);
   })
-  .on("tool_call", (e) => {
-    if (e.name === "bash" && /rm -rf/.test(e.args.command as string)) {
-      return { deny: "Blocked dangerous command" };
-    }
+  .on("tool_call", (e) => console.log(`\n[tool_call: ${e.name}] ${JSON.stringify(e.args)}`))
+  .on("tool_result", (e) =>
+    console.log(`[tool_result: ${e.isError ? "error" : "ok"}] ${e.result.slice(0, 100)}`),
+  )
+  .on("turn_end", () => console.log("\n--- turn end ---\n"));
+
+// Start a slow task
+steerSession.send("List all files recursively under /usr/lib. Use find.");
+
+// While that's running, steer the agent to do something different
+await new Promise((r) => setTimeout(r, 100));
+steerSession.send("Actually, forget that. Just tell me the current date instead.", {
+  mode: "steer",
+});
+
+await steerSession.waitForIdle();
+
+// ---------------------------------------------------------------------------
+// Queue mode: stack messages that process sequentially after the current turn.
+// Each queued message keeps the loop alive for another turn — useful for
+// scripting a series of instructions without waiting for each to finish.
+// ---------------------------------------------------------------------------
+console.log("\n=== QUEUE MODE ===\n");
+
+const queueAgent = new Agent({
+  systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
+  model: "moonshotai/kimi-k2.5",
+  runtime,
+  store: new InMemorySessionStore(),
+  tools: [BashTool],
+  sendMode: "queue", // default mode for this agent's sessions
+});
+
+const queueSession = await queueAgent.createSession();
+
+queueSession
+  .on("text_delta", ({ delta }) => {
+    process.stdout.write(delta);
   })
-  .on("tool_result", (e) => {
-    console.log(`\n[${e.name} ${e.isError ? "failed" : "done"}]`);
-  });
+  .on("tool_call", (e) => console.log(`\n[tool_call: ${e.name}] ${JSON.stringify(e.args)}`))
+  .on("tool_result", (e) =>
+    console.log(`[tool_result: ${e.isError ? "error" : "ok"}] ${e.result.slice(0, 100)}`),
+  )
+  .on("turn_end", () => console.log("\n--- turn end ---\n"));
 
-await session.send("What OS is this? Use uname -a.");
+// Fire off three messages — only the first starts the loop, the rest queue up.
+// They process in order: each one waits for the previous turn to finish.
+queueSession.send("What OS is this? Use uname -a.");
+queueSession.send("How much disk space is free? Use df -h.", { mode: "queue" });
+queueSession.send("What is the current uptime?", { mode: "queue" });
 
-await session.send("could you run rm -rf ~/Developer/agentlayer");
+// Wait for all queued messages to be processed.
+await queueSession.waitForIdle();

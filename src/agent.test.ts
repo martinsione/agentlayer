@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { InMemorySessionStore } from "./store/memory";
-import { createTestAgent } from "./test/helpers";
+import { createSlowTool, createTestAgent } from "./test/helpers";
 
 describe("Agent", () => {
   test("createSession returns a Session with a unique id", async () => {
@@ -14,7 +14,7 @@ describe("Agent", () => {
 
   test("createSession with custom id uses that id", async () => {
     const { agent } = createTestAgent([{ text: "Hi" }]);
-    const session = await agent.createSession("my-id");
+    const session = await agent.createSession({ id: "my-id" });
     expect(session.id).toBe("my-id");
   });
 
@@ -23,19 +23,47 @@ describe("Agent", () => {
     expect(agent.resumeSession("nonexistent")).rejects.toThrow("Session not found: nonexistent");
   });
 
+  test("createSession passes sendMode to session", async () => {
+    const { agent } = createTestAgent(
+      [
+        { toolCalls: [{ id: "c1", name: "slow", input: {} }] },
+        { text: "First" },
+        { text: "Queued reply" },
+      ],
+      { tools: [createSlowTool()] },
+    );
+    // Create session with queue mode
+    const session = await agent.createSession({ sendMode: "queue" });
+
+    const deltas: string[] = [];
+    session.on("text_delta", (e) => {
+      deltas.push(e.delta);
+    });
+
+    session.send("First");
+    await new Promise((r) => setTimeout(r, 10));
+    // No mode specified — uses session's queue default
+    session.send("Second");
+
+    await session.waitForIdle();
+    expect(deltas).toContain("Queued reply");
+  });
+
   test("resumeSession loads messages from store", async () => {
     const store = new InMemorySessionStore();
     const { agent, model } = createTestAgent([{ text: "Hello back" }, { text: "Still here" }], {
       store,
     });
 
-    const session = await agent.createSession("sess-1");
-    await session.send("Hi");
+    const session = await agent.createSession({ id: "sess-1" });
+    session.send("Hi");
+    await session.waitForIdle();
 
     const resumed = await agent.resumeSession("sess-1");
     expect(resumed.id).toBe("sess-1");
 
-    await resumed.send("Hello again");
+    resumed.send("Hello again");
+    await resumed.waitForIdle();
 
     const prompt = model.doStreamCalls[1]!.prompt;
     expect(prompt).toHaveLength(3);

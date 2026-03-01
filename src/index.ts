@@ -12,7 +12,9 @@ export type {
   Tool,
   ToolContext,
   SessionStore,
-  AgentConfig,
+  AgentOptions,
+  SessionOptions,
+  SendMode,
   // Event types
   TextDeltaEvent,
   MessageEvent,

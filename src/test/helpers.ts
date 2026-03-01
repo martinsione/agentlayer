@@ -6,7 +6,7 @@ import { Agent } from "../agent";
 import { loop, type LoopConfig } from "../loop";
 import { JustBashRuntime } from "../runtime/just-bash";
 import { InMemorySessionStore } from "../store/memory";
-import type { LoopEvent, Tool } from "../types";
+import type { LoopEvent, SendMode, Tool } from "../types";
 
 type MockToolCall = { id: string; name: string; input: Record<string, unknown> };
 
@@ -77,7 +77,7 @@ export function createFailingModel(message = "model crashed") {
 
 export function createTestAgent(
   responses: MockResponse[],
-  opts?: { store?: InMemorySessionStore; tools?: Tool[] },
+  opts?: { store?: InMemorySessionStore; tools?: Tool[]; sendMode?: SendMode },
 ) {
   const model = createMockModel(responses);
   const agent = new Agent({
@@ -85,12 +85,25 @@ export function createTestAgent(
     runtime: new JustBashRuntime(),
     store: opts?.store ?? new InMemorySessionStore(),
     tools: opts?.tools,
+    sendMode: opts?.sendMode,
   });
   return { agent, model };
 }
 
 export function userMessage(text: string): ModelMessage {
   return { role: "user", content: [{ type: "text", text }] };
+}
+
+export function createSlowTool(name = "slow", delayMs = 50): Tool {
+  return {
+    name,
+    description: `slow tool`,
+    parameters: { type: "object", properties: {} },
+    execute: async (): Promise<string> => {
+      await new Promise((r) => setTimeout(r, delayMs));
+      return "done";
+    },
+  };
 }
 
 export async function drainLoop(

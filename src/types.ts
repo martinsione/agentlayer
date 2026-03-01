@@ -79,12 +79,17 @@ export type LoopEvent =
   | ({ type: "tool_result" } & ToolResultEvent & { message: ModelMessage })
   | ({ type: "step" } & StepEvent);
 
-// Config
-export type AgentConfig = {
+// Send mode
+export type SendMode = "steer" | "queue";
+
+// Options
+export type SessionOptions = { sendMode?: SendMode };
+export type AgentOptions = {
   model: LanguageModel;
   systemPrompt?: string;
   tools?: Tool[];
   runtime?: Runtime;
   store?: SessionStore;
   maxSteps?: number; // default: 100
+  sendMode?: SendMode;
 };

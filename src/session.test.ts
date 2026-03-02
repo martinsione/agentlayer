@@ -1253,3 +1253,76 @@ describe("Session dynamic config (model, tools, systemPrompt)", () => {
     expect(model2.doStreamCalls).toHaveLength(1);
   });
 });
+
+describe("Session.steer and Session.followUp", () => {
+  test("steer() is equivalent to send with mode steer", async () => {
+    const { agent } = createTestAgent(
+      [{ toolCalls: [{ id: "c1", name: "slow", input: {} }] }, { text: "Steered" }],
+      { tools: [createSlowTool()] },
+    );
+    const session = await agent.createSession();
+
+    const userMessages: ModelMessage[] = [];
+    session.on("message", (e) => {
+      if (e.message.role === "user") userMessages.push(e.message);
+    });
+
+    session.send("First");
+    await new Promise((r) => setTimeout(r, 10));
+    session.steer("Interrupt");
+    await session.waitForIdle();
+
+    expect(userMessages).toHaveLength(2);
+  });
+
+  test("followUp() is equivalent to send with mode queue", async () => {
+    const { agent } = createTestAgent(
+      [
+        { toolCalls: [{ id: "c1", name: "slow", input: {} }] },
+        { text: "First reply" },
+        { text: "Follow-up reply" },
+      ],
+      { tools: [createSlowTool()] },
+    );
+    const session = await agent.createSession();
+
+    const deltas: string[] = [];
+    session.on("text-delta", (e) => {
+      deltas.push(e.text);
+    });
+
+    session.send("First");
+    await new Promise((r) => setTimeout(r, 10));
+    session.followUp("More work");
+    await session.waitForIdle();
+
+    expect(deltas).toContain("First reply");
+    expect(deltas).toContain("Follow-up reply");
+  });
+});
+
+describe("Session.continue", () => {
+  test("continues the loop without adding a user message", async () => {
+    const { agent, model } = createTestAgent([{ text: "First" }, { text: "Continued" }]);
+    const session = await agent.createSession();
+
+    await session.prompt("Start");
+    const text = await session.continue();
+
+    expect(text).toBe("Continued");
+    // The second model call should not have a new user message after the assistant
+    const secondCallPrompt = model.doStreamCalls[1]!.prompt;
+    expect(secondCallPrompt[secondCallPrompt.length - 1]!.role).toBe("assistant");
+  });
+
+  test("streams text via onText callback", async () => {
+    const { agent } = createTestAgent([{ text: "First" }, { text: "Continued" }]);
+    const session = await agent.createSession();
+
+    await session.prompt("Start");
+    const chunks: string[] = [];
+    await session.continue({ onText: (t) => chunks.push(t) });
+
+    expect(chunks).toEqual(["Continued"]);
+  });
+});

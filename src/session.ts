@@ -206,6 +206,36 @@ export class Session {
     return "";
   }
 
+  steer(input: string | ModelMessage | ModelMessage[]): void {
+    this.send(input, { mode: "steer" });
+  }
+
+  followUp(input: string | ModelMessage | ModelMessage[]): void {
+    this.send(input, { mode: "queue" });
+  }
+
+  async continue(opts?: {
+    onText?: (text: string) => void;
+    signal?: AbortSignal;
+  }): Promise<string> {
+    let unsub: (() => void) | undefined;
+    if (opts?.onText) {
+      unsub = this.on("text-delta", (e) => opts.onText!(e.text));
+    }
+    this.send([], { signal: opts?.signal });
+    try {
+      await this.waitForIdle();
+    } finally {
+      unsub?.();
+    }
+    for (let i = this._messages.length - 1; i >= 0; i--) {
+      if (this._messages[i]!.role === "assistant") {
+        return getMessageText(this._messages[i]!);
+      }
+    }
+    return "";
+  }
+
   abort(): void {
     this.controller?.abort();
   }

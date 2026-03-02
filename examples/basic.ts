@@ -4,7 +4,7 @@
 
 import { Agent, defineTool } from "agentlayer";
 import { BashTool } from "agentlayer/tools/bash";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const dateTool = defineTool({
   name: "current_date",

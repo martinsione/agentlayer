@@ -1,17 +1,25 @@
 import { mkdir, appendFile, readFile, readdir, access } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import type { SessionEntry, SessionStore } from "../types";
 
 export class JsonlSessionStore implements SessionStore {
   private readonly dir: string;
   private dirEnsured = false;
+  /** Per-session write queues to serialize appends and prevent interleaved writes. */
+  private readonly writeQueues = new Map<string, Promise<void>>();
 
   constructor(dir: string) {
-    this.dir = dir;
+    this.dir = resolve(dir);
   }
 
   private filePath(sessionId: string): string {
-    return join(this.dir, `${sessionId}.jsonl`);
+    const resolved = resolve(this.dir, `${sessionId}.jsonl`);
+    // Ensure the resolved path stays within the configured directory.
+    // Use dir + sep to avoid prefix false-positives (e.g. dir "foo" matching "foobar/x").
+    if (!resolved.startsWith(this.dir + "/")) {
+      throw new Error(`Invalid sessionId: path escapes store directory`);
+    }
+    return resolved;
   }
 
   async load(sessionId: string): Promise<SessionEntry[]> {
@@ -35,16 +43,24 @@ export class JsonlSessionStore implements SessionStore {
 
   async append(sessionId: string, entry: SessionEntry): Promise<void> {
     const path = this.filePath(sessionId);
-    if (!this.dirEnsured) {
-      await mkdir(dirname(path), { recursive: true });
-      this.dirEnsured = true;
-    }
-    await appendFile(path, JSON.stringify(entry) + "\n");
+
+    // Chain writes per session so concurrent appends never interleave bytes.
+    const prev = this.writeQueues.get(sessionId) ?? Promise.resolve();
+    const next = prev.then(async () => {
+      if (!this.dirEnsured) {
+        await mkdir(dirname(path), { recursive: true });
+        this.dirEnsured = true;
+      }
+      await appendFile(path, JSON.stringify(entry) + "\n");
+    });
+    this.writeQueues.set(sessionId, next);
+    await next;
   }
 
   async exists(sessionId: string): Promise<boolean> {
+    const path = this.filePath(sessionId); // throws on path traversal before try/catch
     try {
-      await access(this.filePath(sessionId));
+      await access(path);
       return true;
     } catch {
       return false;

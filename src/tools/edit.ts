@@ -114,11 +114,29 @@ export function createEditTool(cwd?: string): Tool {
 
       await ctx.runtime.writeFile(filePath, updated);
 
-      // Count replacements for reporting
-      const originalCount = content.split(input.old_string).length - 1;
+      // Count replacements by diffing before/after lengths
+      let replacementCount = 1;
+      if (input.replace_all) {
+        const oldLen = input.old_string.length;
+        const newLen = input.new_string.length;
+        if (oldLen !== newLen) {
+          replacementCount = (updated.length - content.length) / (newLen - oldLen);
+        } else {
+          // Lengths equal: count how many positions actually changed
+          let count = 0;
+          let searchFrom = 0;
+          while (searchFrom < updated.length) {
+            const idx = updated.indexOf(input.new_string, searchFrom);
+            if (idx === -1) break;
+            count++;
+            searchFrom = idx + input.new_string.length;
+          }
+          replacementCount = count;
+        }
+      }
       const msg =
-        input.replace_all && originalCount > 1
-          ? `Edited ${filePath} (${originalCount} replacements)`
+        input.replace_all && replacementCount > 1
+          ? `Edited ${filePath} (${replacementCount} replacements)`
           : `Edited ${filePath}`;
       return msg;
     },

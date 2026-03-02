@@ -80,6 +80,13 @@ type BuildToolDefsOpts = {
 
 function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
   const { tools, runtime, hooks, onToolProgress, sessionId, messages } = opts;
+  const seen = new Set<string>();
+  for (const t of tools) {
+    if (seen.has(t.name)) {
+      throw new Error(`Duplicate tool name: "${t.name}". Each tool must have a unique name.`);
+    }
+    seen.add(t.name);
+  }
   const toolDefs: Record<string, unknown> = {};
   for (const t of tools) {
     toolDefs[t.name] = tool({

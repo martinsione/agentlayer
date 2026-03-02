@@ -6,6 +6,34 @@ import { createMockModel, drainLoop, userMessage } from "./test/helpers";
 import { BashTool } from "./tools/bash";
 import type { LoopEvent, ModelMessage, ToolProgressEvent, ToolResult } from "./types";
 
+describe("loop duplicate tool names", () => {
+  test("throws on duplicate tool names", async () => {
+    const toolA = {
+      name: "dupe",
+      description: "first",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<string> => "a",
+    };
+    const toolB = {
+      name: "dupe",
+      description: "second",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<string> => "b",
+    };
+    const model = createMockModel([{ text: "Hello" }]);
+    const runtime = new JustBashRuntime();
+
+    const gen = loop([userMessage("Hi")], {
+      model,
+      tools: [toolA, toolB],
+      runtime,
+      maxSteps: 10,
+    });
+
+    await expect(gen.next()).rejects.toThrow('Duplicate tool name: "dupe"');
+  });
+});
+
 describe("loop", () => {
   test("yields events in correct order for text-only", async () => {
     const model = createMockModel([{ text: "Hello" }]);

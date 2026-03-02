@@ -77,7 +77,11 @@ function applyEdit(
       matches.push({ index: searchFrom + match.index, length: match.length });
       searchFrom += match.index + match.length;
     }
-    if (matches.length === 0) return { result: content, count: 0 };
+    if (matches.length === 0) {
+      throw new Error(
+        "Could not find the specified text in the file. Make sure old_string matches exactly.",
+      );
+    }
     let result = content;
     for (let i = matches.length - 1; i >= 0; i--) {
       const m = matches[i]!;
@@ -109,6 +113,10 @@ export function createEditTool(cwd?: string): Tool {
     schema,
     execute: async (input, ctx) => {
       const filePath = resolve(cwd ?? ctx.runtime.cwd, input.path);
+
+      if (input.old_string === "") {
+        throw new Error("old_string must not be empty. Provide the exact text you want to replace.");
+      }
 
       if (input.old_string === input.new_string) {
         return "No changes needed — old_string and new_string are identical.";

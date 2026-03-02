@@ -147,4 +147,31 @@ describe("EditTool", () => {
       tool.execute({ path: "does-not-exist.txt", old_string: "a", new_string: "b" }, ctx),
     ).rejects.toThrow();
   });
+
+  test("throws when old_string is empty", async () => {
+    const file = join(tmpDir, "empty-old.txt");
+    await writeFile(file, "hello world");
+    expect(
+      tool.execute({ path: file, old_string: "", new_string: "prepend" }, ctx),
+    ).rejects.toThrow("old_string must not be empty");
+  });
+
+  test("throws when old_string is empty with replace_all", async () => {
+    const file = join(tmpDir, "empty-old-all.txt");
+    await writeFile(file, "hello world");
+    expect(
+      tool.execute({ path: file, old_string: "", new_string: "X", replace_all: true }, ctx),
+    ).rejects.toThrow("old_string must not be empty");
+  });
+
+  test("throws when replace_all finds no matches", async () => {
+    const file = join(tmpDir, "replace-all-no-match.txt");
+    await writeFile(file, "hello world");
+    expect(
+      tool.execute(
+        { path: file, old_string: "nonexistent", new_string: "new", replace_all: true },
+        ctx,
+      ),
+    ).rejects.toThrow("Could not find");
+  });
 });

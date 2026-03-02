@@ -1,4 +1,5 @@
 export { Agent } from "./agent";
+export { defineTool } from "./define-tool";
 export { Session, buildContext } from "./session";
 export { loop } from "./loop";
 export { getMessageText, getLastAssistantText } from "./utils";

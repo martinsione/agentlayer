@@ -99,7 +99,12 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
 
         const onProgress = onToolProgress
           ? (text: string) =>
-              onToolProgress({ toolCallId: options.toolCallId, toolName: t.name, text })
+              onToolProgress({
+                toolCallId: options.toolCallId,
+                toolName: t.name,
+                toolLabel: t.label,
+                text,
+              })
           : undefined;
 
         let result: string;

@@ -36,7 +36,7 @@ export function defineTool<TSchema extends ZodObjectSchema>(opts: {
 }): Tool<z.infer<TSchema>> {
   return {
     name: opts.name,
-    ...(opts.label && { label: opts.label }),
+    label: opts.label,
     description: opts.description,
     parameters: z.toJSONSchema(opts.schema, { target: "draft-7" }) as Record<string, unknown>,
     execute: opts.execute as Tool<z.infer<TSchema>>["execute"],

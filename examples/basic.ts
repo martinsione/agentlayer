@@ -2,8 +2,7 @@
 //
 // Run: npx tsx examples/basic.ts
 
-import { Agent } from "agentlayer";
-import { defineTool } from "agentlayer/define-tool";
+import { Agent, defineTool } from "agentlayer";
 import { BashTool } from "agentlayer/tools/bash";
 import { z } from "zod";
 

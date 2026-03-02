@@ -33,8 +33,11 @@ For multi-turn conversations, use sessions:
 
 ```ts
 const session = await agent.createSession();
-const reply = await session.prompt("How many CPUs?");
-const followUp = await session.prompt("And RAM?");
+await session.prompt("How many CPUs?");
+console.log(session.text); // last assistant reply
+
+await session.prompt("And RAM?");
+console.log(session.text); // updated after each turn
 ```
 
 ## Custom tools
@@ -42,11 +45,12 @@ const followUp = await session.prompt("And RAM?");
 Create type-safe tools with zod schemas via `defineTool`:
 
 ```ts
-import { defineTool } from "agentlayer/define-tool";
+import { defineTool } from "agentlayer";
 import { z } from "zod/v4";
 
 const weather = defineTool({
   name: "get_weather",
+  label: "Weather",
   description: "Get the current weather for a city",
   schema: z.object({ city: z.string() }),
   needsApproval: true, // fires before-tool-call with needsApproval: true
@@ -93,6 +97,7 @@ const agent = new Agent({
   },
 });
 // LLM can now call task_explore and task_plan tools
+// Subagent text deltas are forwarded as tool-progress events
 ```
 
 ## Tool call hooks
@@ -113,7 +118,9 @@ session.on("before-tool-call", (e) => {
 });
 ```
 
-Other hooks: `after-tool-call`, `before-model-call`, `before-stop` (can return `{ preventStop: true }` to keep the loop running).
+Hook events also include `toolLabel` (human-readable name) when available.
+
+Other hooks: `after-tool-call` (includes `metadata` from tool results), `before-model-call`, `before-stop` (can return `{ preventStop: true }` to keep the loop running).
 
 ## Session persistence
 

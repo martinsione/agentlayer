@@ -175,7 +175,12 @@ export type TurnEndEvent = { messages: ModelMessage[]; text: string };
 export type ErrorEvent = { error: Error };
 
 // Tool progress
-export type ToolProgressEvent = { toolCallId: string; toolName: string; text: string };
+export type ToolProgressEvent = {
+  toolCallId: string;
+  toolName: string;
+  toolLabel?: string;
+  text: string;
+};
 
 // Usage
 export type SessionUsage = {

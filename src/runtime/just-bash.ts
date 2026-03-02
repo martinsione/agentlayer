@@ -39,22 +39,23 @@ export class JustBashRuntime implements Runtime {
     if (!signal) {
       result = await execPromise;
     } else {
-      result = await Promise.race([
-        execPromise,
-        new Promise<never>((_, reject) => {
-          if (signal.aborted) {
-            reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
-            return;
-          }
-          signal.addEventListener(
-            "abort",
-            () => {
-              reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
-            },
-            { once: true },
-          );
-        }),
-      ]);
+      let abortListener: (() => void) | undefined;
+      const abortPromise = new Promise<never>((_, reject) => {
+        if (signal.aborted) {
+          reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
+          return;
+        }
+        abortListener = () => {
+          reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
+        };
+        signal.addEventListener("abort", abortListener, { once: true });
+      });
+
+      try {
+        result = await Promise.race([execPromise, abortPromise]);
+      } finally {
+        if (abortListener) signal.removeEventListener("abort", abortListener);
+      }
     }
 
     // Simulate onData with final output (just-bash doesn't support streaming)

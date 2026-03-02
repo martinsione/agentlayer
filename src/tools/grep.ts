@@ -42,7 +42,13 @@ export function createGrepTool(cwd?: string): Tool {
 
       const command = `grep ${args.join(" ")}`;
 
-      const result = await ctx.runtime.exec(command, { cwd: baseCwd });
+      const result = await ctx.runtime.exec(command, { cwd: baseCwd, signal: ctx.signal });
+
+      // Exit code 1 = no matches (normal). Exit code >= 2 = real error.
+      if (result.exitCode >= 2) {
+        throw new Error(result.stderr.trim() || `grep failed with exit code ${result.exitCode}`);
+      }
+
       const output = result.stdout;
 
       if (!output.trim()) {

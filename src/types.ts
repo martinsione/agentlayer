@@ -265,6 +265,14 @@ export type ThinkingBudgets = {
   high?: number;
 };
 
+/** Configuration for auto-compaction. */
+export type CompactionConfig = {
+  /** Summarize the messages that need compaction. Called with messages to summarize. */
+  summarize: (messages: readonly ModelMessage[]) => string | Promise<string>;
+  /** Number of recent messages to keep uncompacted (default: 4). */
+  keepLast?: number;
+};
+
 // Options
 export type SessionOptions = { sendMode?: SendMode };
 export type AgentOptions = {
@@ -291,4 +299,6 @@ export type AgentOptions = {
   transformContext?: (messages: ModelMessage[]) => ModelMessage[] | Promise<ModelMessage[]>;
   /** Inline event handler — receives all session events. */
   onEvent?: (event: SessionEvent) => void | Promise<void>;
+  /** Auto-compaction configuration. When provided, session.compact() can be called. */
+  compaction?: CompactionConfig;
 };

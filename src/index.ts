@@ -17,6 +17,7 @@ export type {
   ToolContext,
   SessionStore,
   AgentOptions,
+  CompactionConfig,
   SessionOptions,
   SendMode,
   // Session entry types

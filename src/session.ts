@@ -2,6 +2,8 @@ import type { ModelMessage } from "@ai-sdk/provider-utils";
 import type { LanguageModel } from "ai";
 import { loop, type LoopConfig } from "./loop";
 import type {
+  CompactionConfig,
+  CompactionEntry,
   MessageEntry,
   SendMode,
   SessionEntry,
@@ -31,7 +33,11 @@ type Deferred = {
   reject: (reason?: unknown) => void;
 };
 
-type SessionConfig = LoopConfig & { store: SessionStore; sendMode?: SendMode };
+type SessionConfig = LoopConfig & {
+  store: SessionStore;
+  sendMode?: SendMode;
+  compaction?: CompactionConfig;
+};
 
 export function buildContext(entries: SessionEntry[], leafId: string | null): ModelMessage[] {
   if (leafId === null || entries.length === 0) return [];
@@ -248,6 +254,71 @@ export class Session {
 
   abort(): void {
     this.controller?.abort();
+  }
+
+  async compact(opts?: {
+    summarize?: (messages: readonly ModelMessage[]) => string | Promise<string>;
+    keepLast?: number;
+  }): Promise<void> {
+    const summarize = opts?.summarize ?? this.config.compaction?.summarize;
+    if (!summarize) {
+      throw new Error(
+        "No summarize function provided. Pass one to compact() or set compaction in agent config.",
+      );
+    }
+    const keepLast = opts?.keepLast ?? this.config.compaction?.keepLast ?? 4;
+
+    if (this._messages.length <= keepLast) return; // nothing to compact
+
+    const summary = await summarize(this._messages.slice(0, this._messages.length - keepLast));
+
+    // Find entry IDs on the current path (leaf to root)
+    const path = this.getPath();
+
+    // Count message entries on the path to find the firstKeptId
+    let msgCount = 0;
+    const keptStartIdx = this._messages.length - keepLast;
+    let firstKeptId = path[0]?.id ?? "";
+    for (const entry of path) {
+      if (entry.type === "message") {
+        if (msgCount === keptStartIdx) {
+          firstKeptId = entry.id;
+          break;
+        }
+        msgCount++;
+      }
+    }
+
+    const compactionEntry: CompactionEntry = {
+      type: "compaction",
+      id: crypto.randomUUID(),
+      parentId: this._leafId,
+      timestamp: Date.now(),
+      summary,
+      firstKeptId,
+    };
+
+    this.entries.push(compactionEntry);
+    this._leafId = compactionEntry.id;
+    await this.config.store.append(this.id, compactionEntry);
+    this._messages = buildContext(this.entries, this._leafId);
+  }
+
+  private getPath(): SessionEntry[] {
+    const index = new Map<string, SessionEntry>();
+    for (const e of this.entries) index.set(e.id, e);
+
+    const path: SessionEntry[] = [];
+    const visited = new Set<string>();
+    let current = this._leafId ? index.get(this._leafId) : undefined;
+    while (current) {
+      if (visited.has(current.id)) break;
+      visited.add(current.id);
+      path.push(current);
+      current = current.parentId ? index.get(current.parentId) : undefined;
+    }
+    path.reverse();
+    return path;
   }
 
   private appendEntry(message: ModelMessage): MessageEntry {

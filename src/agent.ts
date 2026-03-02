@@ -6,6 +6,7 @@ import { InMemorySessionStore } from "./store/memory";
 import type {
   AgentHooks,
   AgentOptions,
+  CompactionConfig,
   HookEvent,
   PromptResult,
   SessionOptions,
@@ -15,7 +16,7 @@ import type {
 const DEFAULT_MAX_STEPS = 100;
 
 export class Agent {
-  private readonly config: LoopConfig & { store: SessionStore };
+  private readonly config: LoopConfig & { store: SessionStore; compaction?: CompactionConfig };
   private readonly defaultSendMode: AgentOptions["sendMode"];
   private readonly hooks: AgentHooks | undefined;
   private readonly onEvent: AgentOptions["onEvent"];
@@ -29,6 +30,7 @@ export class Agent {
     this.config = {
       ...rest,
       systemPrompt,
+      compaction: config.compaction,
       tools: config.tools ?? [],
       runtime: config.runtime ?? new NodeRuntime(),
       store: config.store ?? new InMemorySessionStore(),

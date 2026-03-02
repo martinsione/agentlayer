@@ -1429,3 +1429,84 @@ describe("Session tool context enrichment", () => {
     expect(receivedCtx!.messages!.length).toBeGreaterThan(0);
   });
 });
+
+describe("Session.compact", () => {
+  test("compacts messages and rebuilds context with summary", async () => {
+    const { agent } = createTestAgent([
+      { text: "Reply 1" },
+      { text: "Reply 2" },
+      { text: "Reply 3" },
+      { text: "Reply 4" },
+    ]);
+    const session = await agent.createSession();
+
+    // Build up some history
+    for (const msg of ["A", "B", "C", "D"]) {
+      session.send(msg);
+      await session.waitForIdle();
+    }
+    expect(session.messages).toHaveLength(8); // 4 user + 4 assistant
+
+    // Compact, keeping last 4 messages
+    await session.compact({
+      summarize: async (msgs) => `Summary of ${msgs.length} messages`,
+      keepLast: 4,
+    });
+
+    // After compaction: summary (as user msg) + 4 kept messages
+    expect(session.messages).toHaveLength(5);
+    const firstMsg = session.messages[0]!;
+    expect(firstMsg.role).toBe("user");
+    const text = (firstMsg.content as { type: string; text: string }[])[0]!.text;
+    expect(text).toContain("Summary of 4 messages");
+  });
+
+  test("compact is a no-op when messages <= keepLast", async () => {
+    const { agent } = createTestAgent([{ text: "Reply" }]);
+    const session = await agent.createSession();
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    await session.compact({
+      summarize: async () => "should not be called",
+      keepLast: 10,
+    });
+
+    expect(session.messages).toHaveLength(2); // unchanged
+  });
+
+  test("compact throws without summarize function", async () => {
+    const { agent } = createTestAgent([{ text: "Reply" }]);
+    const session = await agent.createSession();
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(session.compact()).rejects.toThrow("No summarize function");
+  });
+
+  test("compact uses agent-level compaction config", async () => {
+    const model = createMockModel([{ text: "R1" }, { text: "R2" }, { text: "R3" }]);
+    const agent = new Agent({
+      model,
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+      compaction: {
+        summarize: async (msgs) => `Compacted ${msgs.length}`,
+        keepLast: 2,
+      },
+    });
+    const session = await agent.createSession();
+
+    for (const msg of ["A", "B", "C"]) {
+      session.send(msg);
+      await session.waitForIdle();
+    }
+
+    await session.compact();
+
+    // summary + 2 kept = 3
+    expect(session.messages).toHaveLength(3);
+  });
+});

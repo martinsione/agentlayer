@@ -246,6 +246,9 @@ export class Session {
     summarize?: (messages: readonly ModelMessage[]) => string | Promise<string>;
     keepLast?: number;
   }): Promise<void> {
+    if (this.completion) {
+      throw new Error("Cannot compact while session is running");
+    }
     const summarize = opts?.summarize ?? this.config.compaction?.summarize;
     if (!summarize) {
       throw new Error(

@@ -58,6 +58,7 @@ export type {
   StepStartEvent,
   StepEndEvent,
   SessionEventMap,
+  SessionEvent,
   LoopEvent,
   // Hook types
   HookEventMap,

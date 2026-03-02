@@ -1326,3 +1326,65 @@ describe("Session.continue", () => {
     expect(chunks).toEqual(["Continued"]);
   });
 });
+
+describe("Session.subscribe", () => {
+  test("receives all events with type discriminator", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const session = await agent.createSession();
+
+    const types: string[] = [];
+    session.subscribe((event) => {
+      types.push(event.type);
+    });
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(types).toContain("status");
+    expect(types).toContain("turn-start");
+    expect(types).toContain("text-start");
+    expect(types).toContain("text-delta");
+    expect(types).toContain("text-end");
+    expect(types).toContain("message");
+    expect(types).toContain("turn-end");
+  });
+
+  test("unsubscribe stops receiving events", async () => {
+    const { agent } = createTestAgent([{ text: "A" }, { text: "B" }]);
+    const session = await agent.createSession();
+
+    const types: string[] = [];
+    const unsub = session.subscribe((event) => {
+      if (event.type === "text-delta") types.push(event.text);
+    });
+
+    session.send("First");
+    await session.waitForIdle();
+    unsub();
+    session.send("Second");
+    await session.waitForIdle();
+
+    expect(types).toEqual(["A"]);
+  });
+
+  test("wildcard and specific listeners both fire", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const session = await agent.createSession();
+
+    const specificDeltas: string[] = [];
+    const wildcardDeltas: string[] = [];
+
+    session.on("text-delta", (e) => {
+      specificDeltas.push(e.text);
+    });
+    session.subscribe((event) => {
+      if (event.type === "text-delta") wildcardDeltas.push(event.text);
+    });
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(specificDeltas).toEqual(["Hello"]);
+    expect(wildcardDeltas).toEqual(["Hello"]);
+  });
+});

@@ -5,6 +5,7 @@ import type {
   MessageEntry,
   SendMode,
   SessionEntry,
+  SessionEvent,
   SessionStatus,
   SessionUsage,
   SessionStore,
@@ -104,6 +105,7 @@ export class Session {
   private _messages: ModelMessage[];
   private readonly config: SessionConfig;
   private listeners = new Map<keyof SessionEventMap, Set<Listener<unknown>>>();
+  private wildcardListeners = new Set<(event: SessionEvent) => void | Promise<void>>();
 
   private _usage = { inputTokens: 0, outputTokens: 0 };
   private steeringQueue: ModelMessage[] = [];
@@ -265,6 +267,13 @@ export class Session {
     };
   }
 
+  subscribe(listener: (event: SessionEvent) => void | Promise<void>): () => void {
+    this.wildcardListeners.add(listener);
+    return () => {
+      this.wildcardListeners.delete(listener);
+    };
+  }
+
   send(
     input: string | ModelMessage | ModelMessage[],
     opts?: { mode?: SendMode; signal?: AbortSignal },
@@ -402,9 +411,16 @@ export class Session {
     payload: SessionEventMap[K],
   ): Promise<void> {
     const set = this.listeners.get(event);
-    if (!set) return;
-    for (const listener of set) {
-      await listener(payload);
+    if (set) {
+      for (const listener of set) {
+        await listener(payload);
+      }
+    }
+    if (this.wildcardListeners.size > 0) {
+      const sessionEvent = { type: event, ...payload } as SessionEvent;
+      for (const listener of this.wildcardListeners) {
+        await listener(sessionEvent);
+      }
     }
   }
 

@@ -210,6 +210,11 @@ export type SessionEventMap = {
   "step-end": StepEndEvent;
 };
 
+/** Discriminated union of all session events — used by session.subscribe(). */
+export type SessionEvent = {
+  [K in keyof SessionEventMap]: { type: K } & SessionEventMap[K];
+}[keyof SessionEventMap];
+
 // Loop events — what the loop yields
 export const STREAM_EVENT_TYPES = [
   "text-start",

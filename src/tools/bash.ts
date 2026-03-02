@@ -6,7 +6,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, unlink } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod/v4";
@@ -155,6 +155,8 @@ export function createBashTool(cwd?: string, options?: BashToolOptions): Tool {
           }
         }
 
+        if (tempFilePath) unlink(tempFilePath, () => {});
+
         if (result.exitCode !== 0 && result.exitCode !== null) {
           outputText += `\n\nCommand exited with code ${result.exitCode}`;
           throw new Error(outputText);
@@ -163,6 +165,7 @@ export function createBashTool(cwd?: string, options?: BashToolOptions): Tool {
         return outputText;
       } catch (err) {
         if (tempFileStream) tempFileStream.end();
+        if (tempFilePath) unlink(tempFilePath, () => {});
 
         if (err instanceof Error) {
           const fullBuffer = Buffer.concat(chunks);

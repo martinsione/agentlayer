@@ -18,12 +18,14 @@ export class Agent {
   private readonly config: LoopConfig & { store: SessionStore };
   private readonly defaultSendMode: AgentOptions["sendMode"];
   private readonly hooks: AgentHooks | undefined;
+  private readonly onEvent: AgentOptions["onEvent"];
 
   constructor(config: AgentOptions) {
     this.defaultSendMode = config.sendMode;
     this.hooks = config.hooks;
+    this.onEvent = config.onEvent;
     const systemPrompt = config.instructions ?? config.systemPrompt;
-    const { hooks: _, instructions: __, ...rest } = config;
+    const { hooks: _, instructions: __, onEvent: ___, ...rest } = config;
     this.config = {
       ...rest,
       systemPrompt,
@@ -77,13 +79,17 @@ export class Agent {
   }
 
   private applyHooks(session: Session): void {
-    if (!this.hooks) return;
-    for (const [event, listener] of Object.entries(this.hooks)) {
-      if (listener == null) continue;
-      const listeners = Array.isArray(listener) ? listener : [listener];
-      for (const fn of listeners) {
-        session.on(event as HookEvent, fn as any);
+    if (this.hooks) {
+      for (const [event, listener] of Object.entries(this.hooks)) {
+        if (listener == null) continue;
+        const listeners = Array.isArray(listener) ? listener : [listener];
+        for (const fn of listeners) {
+          session.on(event as HookEvent, fn as any);
+        }
       }
+    }
+    if (this.onEvent) {
+      session.subscribe(this.onEvent);
     }
   }
 }

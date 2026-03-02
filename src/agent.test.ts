@@ -328,6 +328,55 @@ describe("Agent with JsonlSessionStore", () => {
   });
 });
 
+describe("Agent onEvent", () => {
+  test("onEvent receives all session events", async () => {
+    const types: string[] = [];
+    const model = createMockModel([{ text: "Hello" }]);
+    const agent = new Agent({
+      model,
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+      onEvent: (event) => {
+        types.push(event.type);
+      },
+    });
+
+    const session = await agent.createSession();
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(types).toContain("text-delta");
+    expect(types).toContain("message");
+    expect(types).toContain("turn-end");
+  });
+
+  test("onEvent applies to resumed sessions", async () => {
+    const store = new InMemorySessionStore();
+    const types: string[] = [];
+    const model = createMockModel([{ text: "First" }, { text: "Second" }]);
+    const agent = new Agent({
+      model,
+      runtime: new JustBashRuntime(),
+      store,
+      onEvent: (event) => {
+        types.push(event.type);
+      },
+    });
+
+    const s1 = await agent.createSession({ id: "s1" });
+    s1.send("Hello");
+    await s1.waitForIdle();
+
+    types.length = 0; // reset
+
+    const s2 = await agent.resumeSession("s1");
+    s2.send("Follow up");
+    await s2.waitForIdle();
+
+    expect(types).toContain("text-delta");
+  });
+});
+
 describe("Agent instructions alias", () => {
   test("instructions is used as system prompt", async () => {
     const model = createMockModel([{ text: "Hi" }]);

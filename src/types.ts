@@ -289,4 +289,6 @@ export type AgentOptions = {
    * return new message objects if modification is needed.
    */
   transformContext?: (messages: ModelMessage[]) => ModelMessage[] | Promise<ModelMessage[]>;
+  /** Inline event handler — receives all session events. */
+  onEvent?: (event: SessionEvent) => void | Promise<void>;
 };

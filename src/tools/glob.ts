@@ -6,6 +6,7 @@
  * 500 results.
  */
 
+import { resolve } from "node:path";
 import { z } from "zod/v4";
 import { defineTool } from "../define-tool";
 import type { Tool } from "../types";
@@ -26,7 +27,7 @@ export function createGlobTool(cwd?: string): Tool {
     schema,
     execute: async (input, ctx) => {
       const baseCwd = cwd ?? ctx.runtime.cwd;
-      const searchDir = input.cwd ? `${baseCwd}/${input.cwd}` : baseCwd;
+      const searchDir = input.cwd ? resolve(baseCwd, input.cwd) : baseCwd;
 
       // Use find via the runtime so this works on any runtime (Node, sandbox, etc.).
       // Convert the glob pattern into a find -path expression:
@@ -50,7 +51,10 @@ export function createGlobTool(cwd?: string): Tool {
 
       const args: string[] = ["find", `'${sq(subDir)}'`];
       if (!hasRecursive) args.push("-maxdepth", "1");
-      args.push("-type", "f", "-name", `'${sq(namePattern)}'`);
+      args.push("-type", "f");
+      // When namePattern is '**', it means "match everything" — omit -name
+      // so find returns all files instead of looking for a literal '**' filename.
+      if (namePattern !== "**") args.push("-name", `'${sq(namePattern)}'`);
       args.push("|", "head", "-n", String(MAX_RESULTS + 1));
 
       const result = await ctx.runtime.exec(args.join(" "), {

@@ -22,7 +22,9 @@ async function getDefaultRuntime(): Promise<Runtime> {
 }
 
 export class Agent {
-  private readonly configPromise: Promise<LoopConfig & { store: SessionStore; compaction?: CompactionConfig }>;
+  private readonly configPromise: Promise<
+    LoopConfig & { store: SessionStore; compaction?: CompactionConfig }
+  >;
   private readonly defaultSendMode: AgentOptions["sendMode"];
   private readonly hooks: AgentHooks | undefined;
   private readonly onEvent: AgentOptions["onEvent"];

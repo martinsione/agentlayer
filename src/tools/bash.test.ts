@@ -103,9 +103,9 @@ describe("BashTool with DOMException-style errors", () => {
     const runtime = createThrowingRuntime(
       new DOMException("The operation timed out.", "TimeoutError"),
     );
-    await expect(
-      BashTool.execute({ command: "test", timeout: 5 }, { runtime }),
-    ).rejects.toThrow("Command timed out after 5 seconds");
+    await expect(BashTool.execute({ command: "test", timeout: 5 }, { runtime })).rejects.toThrow(
+      "Command timed out after 5 seconds",
+    );
   });
 
   test("TimeoutError without user-supplied timeout shows 'unknown'", async () => {

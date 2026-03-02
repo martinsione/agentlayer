@@ -47,13 +47,15 @@ export class JsonlSessionStore implements SessionStore {
     // Chain writes per session so concurrent appends never interleave bytes.
     // Use .catch(() => {}) on prev so a prior failed write doesn't permanently break the chain.
     const prev = this.writeQueues.get(sessionId) ?? Promise.resolve();
-    const next = prev.catch(() => {}).then(async () => {
-      if (!this.dirEnsured) {
-        await mkdir(dirname(path), { recursive: true });
-        this.dirEnsured = true;
-      }
-      await appendFile(path, JSON.stringify(entry) + "\n");
-    });
+    const next = prev
+      .catch(() => {})
+      .then(async () => {
+        if (!this.dirEnsured) {
+          await mkdir(dirname(path), { recursive: true });
+          this.dirEnsured = true;
+        }
+        await appendFile(path, JSON.stringify(entry) + "\n");
+      });
     this.writeQueues.set(sessionId, next);
     try {
       await next;

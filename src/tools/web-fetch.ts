@@ -14,10 +14,7 @@ export interface WebFetchToolOptions {
 const webFetchSchema = z.object({
   url: z.string().describe("The URL to fetch"),
   method: z.string().optional().describe("HTTP method (default: GET)"),
-  headers: z
-    .record(z.string(), z.string())
-    .optional()
-    .describe("HTTP headers as key-value pairs"),
+  headers: z.record(z.string(), z.string()).optional().describe("HTTP headers as key-value pairs"),
   body: z.string().optional().describe("Request body"),
 });
 

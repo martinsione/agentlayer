@@ -9,8 +9,8 @@ import { resolve } from "node:path";
 import { z } from "zod/v4";
 import { defineTool } from "../define-tool";
 import type { Tool } from "../types";
-import { DEFAULT_MAX_BYTES, truncateStringToBytesFromStart } from "./truncate";
 import { sq } from "./shell-utils";
+import { DEFAULT_MAX_BYTES, truncateStringToBytesFromStart } from "./truncate";
 
 const schema = z.object({
   pattern: z.string().describe("Regex pattern to search for"),

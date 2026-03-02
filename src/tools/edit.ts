@@ -115,7 +115,9 @@ export function createEditTool(cwd?: string): Tool {
       const filePath = resolve(cwd ?? ctx.runtime.cwd, input.path);
 
       if (input.old_string === "") {
-        throw new Error("old_string must not be empty. Provide the exact text you want to replace.");
+        throw new Error(
+          "old_string must not be empty. Provide the exact text you want to replace.",
+        );
       }
 
       if (input.old_string === input.new_string) {

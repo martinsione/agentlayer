@@ -18,6 +18,7 @@ import {
 } from "@opentui/core";
 import { Agent } from "agentlayer";
 import { BashTool } from "agentlayer/tools/bash";
+import { EditTool } from "agentlayer/tools/edit";
 import { GlobTool } from "agentlayer/tools/glob";
 import { GrepTool } from "agentlayer/tools/grep";
 import { ReadTool } from "agentlayer/tools/read";
@@ -40,7 +41,7 @@ const syntaxStyle = SyntaxStyle.fromTheme([
 
 const agent = new Agent({
   model: "moonshotai/kimi-k2.5",
-  systemPrompt: [
+  instructions: [
     "You are a coding assistant running in a terminal.",
     "Use tools to answer questions. Be concise.",
     "Prefer glob/grep/read over bash for file exploration.",
@@ -50,7 +51,7 @@ const agent = new Agent({
     `Platform: ${process.platform}`,
     `Date: ${new Date().toDateString()}`,
   ].join("\n"),
-  tools: [BashTool, ReadTool, WriteTool, GlobTool, GrepTool, WebFetchTool],
+  tools: [BashTool, ReadTool, WriteTool, EditTool, GlobTool, GrepTool, WebFetchTool],
 });
 
 // -- Layout --

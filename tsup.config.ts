@@ -20,6 +20,7 @@ export default defineConfig({
     "tools/write": "src/tools/write.ts",
     "tools/glob": "src/tools/glob.ts",
     "tools/grep": "src/tools/grep.ts",
+    "tools/edit": "src/tools/edit.ts",
   },
   format: ["esm"],
   dts: true,

@@ -15,7 +15,7 @@ import { attachLogger } from "./_log";
 
 const agent = new Agent({
   model: "moonshotai/kimi-k2.5",
-  systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
+  instructions: "You are a helpful assistant. Use tools when needed. Be concise.",
   runtime: new JustBashRuntime(),
   tools: [BashTool, WebFetchTool],
 });

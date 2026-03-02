@@ -6,7 +6,6 @@ import { Agent } from "agentlayer";
 import { defineTool } from "agentlayer/define-tool";
 import { BashTool } from "agentlayer/tools/bash";
 import { z } from "zod";
-import { attachLogger } from "./_log";
 
 const dateTool = defineTool({
   name: "current_date",
@@ -17,13 +16,15 @@ const dateTool = defineTool({
 
 const agent = new Agent({
   model: "moonshotai/kimi-k2.5",
-  systemPrompt: "You are a helpful assistant. Use tools when needed. Be concise.",
+  instructions: "You are a helpful assistant. Use tools when needed. Be concise.",
   tools: [BashTool, dateTool],
+  onEvent: (e) => {
+    if (e.type === "text-delta") process.stdout.write(e.text);
+    if (e.type === "before-tool-call") console.log(`\n> ${e.toolName}(${JSON.stringify(e.input)})`);
+    if (e.type === "tool-result") console.log(`[ok] ${String(e.output).slice(0, 120)}`);
+    if (e.type === "tool-error") console.log(`[error] ${String(e.error).slice(0, 120)}`);
+  },
 });
 
-const session = await agent.createSession();
-attachLogger(session);
-
-session.send("How many CPUs does this machine have? Also, what's today's date?");
-await session.waitForIdle();
+await agent.prompt("How many CPUs does this machine have? Also, what's today's date?");
 console.log();

@@ -16,14 +16,25 @@ import { BashTool } from "agentlayer/tools/bash";
 
 const agent = new Agent({
   model: "moonshotai/kimi-k2.5", // any AI SDK LanguageModel
+  instructions: "You are a helpful assistant.",
   tools: [BashTool],
 });
 
-const session = await agent.createSession();
-session.on("text-delta", (e) => process.stdout.write(e.text));
+// One-liner: send + wait + get text
+const { text } = await agent.prompt("How many CPUs does this machine have?");
 
-session.send("How many CPUs does this machine have?");
-await session.waitForIdle();
+// Or with streaming
+const { text } = await agent.prompt("How many CPUs?", {
+  onText: (t) => process.stdout.write(t),
+});
+```
+
+For multi-turn conversations, use sessions:
+
+```ts
+const session = await agent.createSession();
+const reply = await session.prompt("How many CPUs?");
+const followUp = await session.prompt("And RAM?");
 ```
 
 ## Custom tools
@@ -58,6 +69,30 @@ const echo: Tool = {
   parameters: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
   execute: async (input) => input.text,
 };
+```
+
+## Subagents
+
+Define named subagents that become task tools automatically:
+
+```ts
+const agent = new Agent({
+  model,
+  tools: [BashTool, ReadTool, EditTool],
+  subagents: {
+    explore: {
+      description: "Fast read-only codebase exploration",
+      instructions: "Use grep and glob to find files quickly.",
+      tools: [ReadTool, GlobTool, GrepTool],
+    },
+    plan: {
+      description: "Create implementation plans",
+      instructions: "Plan but don't edit files.",
+      tools: [ReadTool, GlobTool],
+    },
+  },
+});
+// LLM can now call task_explore and task_plan tools
 ```
 
 ## Tool call hooks
@@ -95,40 +130,92 @@ const agent = new Agent({
 
 // First run
 const session = await agent.createSession({ id: "my-session" });
-session.send("What OS is this?");
-await session.waitForIdle();
+await session.prompt("What OS is this?");
 
 // Later: resume with full context
 const resumed = await agent.resumeSession("my-session");
-resumed.send("And how much RAM does it have?");
-await session.waitForIdle();
+await resumed.prompt("And how much RAM does it have?");
 ```
 
-## Send modes
+## Compaction
 
-`send()` is non-blocking and accepts `string`, `ModelMessage`, or `ModelMessage[]`:
+Compact long conversations to stay within context limits:
 
 ```ts
-// Simple text
-session.send("Hello");
+const agent = new Agent({
+  model,
+  compaction: {
+    summarize: async (msgs) => {
+      /* call LLM to summarize */ return summary;
+    },
+    keepLast: 4,
+  },
+});
 
-// Pre-built message (images, multi-part content)
-session.send({ role: "user", content: [{ type: "image", image: buf }] });
+const session = await agent.createSession();
+// ... many turns ...
+await session.compact(); // summarizes old messages, keeps last 4
 ```
 
-Control what happens when you send while the agent is running:
+## Sending messages
 
-- **Steer** (default) — interrupt: `session.send("Do this instead", { mode: "steer" })`
-- **Queue** — sequential: `new Agent({ model, sendMode: "queue" })`
+`session.prompt()` sends and waits. For non-blocking control, use `send()`:
+
+```ts
+session.send("Hello"); // non-blocking, starts the loop
+await session.waitForIdle(); // wait for completion
+```
+
+Interrupt or queue messages while the agent is running:
+
+```ts
+session.steer("Stop, do this instead"); // interrupts before next model call
+session.followUp("Also do this"); // queues after current turn ends
+```
+
+Continue the loop without a new user message:
+
+```ts
+await session.continue(); // re-enters the loop from current state
+```
+
+## Events
+
+Subscribe to individual events or all events at once:
+
+```ts
+// Individual events
+const unsub = session.on("text-delta", (e) => process.stdout.write(e.text));
+
+// All events via subscribe()
+session.subscribe((event) => {
+  if (event.type === "text-delta") process.stdout.write(event.text);
+  if (event.type === "error") console.error(event.error);
+});
+
+// Or inline via agent config
+const agent = new Agent({
+  model,
+  onEvent: (e) => {
+    if (e.type === "text-delta") process.stdout.write(e.text);
+  },
+});
+```
+
+**Stream events** (from AI SDK): `text-start`, `text-delta`, `text-end`, `reasoning-start`, `reasoning-delta`, `reasoning-end`, `tool-input-start`, `tool-input-delta`, `tool-input-end`, `tool-call`, `tool-result`, `tool-error`.
+
+**Framework events**: `message`, `turn-start`, `turn-end`, `error`, `status`, `tool-progress`, `step-start`, `step-end`.
+
+**Hook events** (can return decisions): `before-tool-call`, `after-tool-call`, `before-model-call`, `before-stop`.
 
 ## Dynamic session properties
 
-Change model, tools, system prompt, or thinking level mid-session:
+Change model, tools, instructions, or thinking level mid-session:
 
 ```ts
 session.model = anotherModel;
 session.tools = [BashTool, newTool];
-session.systemPrompt = "New instructions";
+session.instructions = "New instructions";
 session.thinkingLevel = "high"; // "off" | "minimal" | "low" | "medium" | "high"
 ```
 
@@ -141,36 +228,6 @@ const { inputTokens, outputTokens, totalTokens } = session.usage;
 ```
 
 Accumulated across all model calls in the session.
-
-## Context transformation
-
-Transform the message context before each model call (pruning, compaction, injection):
-
-```ts
-const agent = new Agent({
-  model,
-  transformContext: (messages) => {
-    // messages is a shallow copy — return a new array, don't mutate in place
-    if (messages.length > 50) return messages.slice(-20);
-    return messages;
-  },
-});
-```
-
-## Events
-
-`session.on()` returns an unsubscribe function:
-
-```ts
-const unsub = session.on("text-delta", (e) => process.stdout.write(e.text));
-// later: unsub();
-```
-
-**Stream events** (from AI SDK): `text-start`, `text-delta`, `text-end`, `reasoning-start`, `reasoning-delta`, `reasoning-end`, `tool-input-start`, `tool-input-delta`, `tool-input-end`, `tool-call`, `tool-result`, `tool-error`.
-
-**Framework events**: `message`, `turn-start`, `turn-end`, `error`, `status`, `tool-progress`, `step-start`, `step-end`.
-
-**Hook events** (can return decisions): `before-tool-call`, `after-tool-call`, `before-model-call`, `before-stop`.
 
 ## Runtimes
 
@@ -189,17 +246,20 @@ new Agent({ model, runtime: new VercelSandboxRuntime({ sandbox }) });
 ```ts
 const agent = new Agent({
   model,                              // LanguageModel (required)
-  systemPrompt: "You are a ...",      // optional
+  instructions: "You are a ...",      // system prompt (or systemPrompt)
   tools: [BashTool, WebFetchTool],    // optional
   runtime: new NodeRuntime(),         // optional, default: NodeRuntime
   store: new InMemorySessionStore(),  // optional, default: InMemorySessionStore
   maxSteps: 100,                      // optional, default: 100
   sendMode: "steer",                  // "steer" | "queue", default: "steer"
   hooks: { ... },                     // AgentHooks, applied to all sessions
+  onEvent: (e) => { ... },           // inline event handler for all events
   thinkingLevel: "medium",            // "off" | "minimal" | "low" | "medium" | "high"
   thinkingBudgets: { medium: 10000 }, // custom token budgets per level
   providerOptions: { ... },           // passed to streamText providerOptions
   transformContext: (msgs) => msgs,   // pre-model message transform
+  compaction: { summarize, keepLast },// auto-compaction config
+  subagents: { ... },                 // named subagent definitions
 });
 ```
 
@@ -210,6 +270,7 @@ const agent = new Agent({
 | `BashTool`     | `agentlayer/tools/bash`      | Shell commands with output truncation and timeout  |
 | `ReadTool`     | `agentlayer/tools/read`      | Read file contents (truncated to 100KB)            |
 | `WriteTool`    | `agentlayer/tools/write`     | Write files (creates parent directories)           |
+| `EditTool`     | `agentlayer/tools/edit`      | Search-and-replace with fuzzy matching             |
 | `GlobTool`     | `agentlayer/tools/glob`      | Find files matching glob patterns                  |
 | `GrepTool`     | `agentlayer/tools/grep`      | Search file contents with regex                    |
 | `WebFetchTool` | `agentlayer/tools/web-fetch` | HTTP GET/POST with 15s timeout and 50KB truncation |

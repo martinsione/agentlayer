@@ -899,6 +899,33 @@ describe("Session.messages", () => {
   });
 });
 
+describe("Session.text", () => {
+  test("returns the last assistant text after a prompt", async () => {
+    const { agent } = createTestAgent([{ text: "Hello back" }]);
+    const session = await agent.createSession();
+
+    expect(session.text).toBe("");
+
+    session.send("Hi");
+    await session.waitForIdle();
+
+    expect(session.text).toBe("Hello back");
+  });
+
+  test("updates to the latest assistant text across turns", async () => {
+    const { agent } = createTestAgent([{ text: "First" }, { text: "Second" }]);
+    const session = await agent.createSession();
+
+    session.send("Turn 1");
+    await session.waitForIdle();
+    expect(session.text).toBe("First");
+
+    session.send("Turn 2");
+    await session.waitForIdle();
+    expect(session.text).toBe("Second");
+  });
+});
+
 describe("buildContext", () => {
   function msgEntry(id: string, parentId: string | null, message: ModelMessage): MessageEntry {
     return { type: "message", id, parentId, timestamp: Date.now(), message };

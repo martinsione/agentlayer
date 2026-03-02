@@ -144,6 +144,10 @@ export class Session {
     return this._messages;
   }
 
+  get text(): string {
+    return getLastAssistantText(this._messages);
+  }
+
   get status(): SessionStatus {
     return this.completion ? "busy" : "idle";
   }

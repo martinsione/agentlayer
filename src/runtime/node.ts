@@ -27,22 +27,36 @@ export class NodeRuntime implements Runtime {
       const stderrChunks: Buffer[] = [];
       let stdoutLen = 0;
       let stderrLen = 0;
+      let stdoutCapped = false;
+      let stderrCapped = false;
+
+      const killIfFullyCapped = () => {
+        if (stdoutCapped && stderrCapped) child.kill();
+      };
 
       child.stdout.on("data", (data: Buffer) => {
-        if (stdoutLen >= MAX_OUTPUT_BYTES) return;
+        if (stdoutCapped) return;
         const remaining = MAX_OUTPUT_BYTES - stdoutLen;
         const chunk = data.length > remaining ? data.subarray(0, remaining) : data;
         stdoutChunks.push(chunk);
         stdoutLen += chunk.length;
-        if (stdoutLen >= MAX_OUTPUT_BYTES) child.stdout.destroy();
+        if (stdoutLen >= MAX_OUTPUT_BYTES) {
+          stdoutCapped = true;
+          child.stdout.destroy();
+          killIfFullyCapped();
+        }
       });
       child.stderr.on("data", (data: Buffer) => {
-        if (stderrLen >= MAX_OUTPUT_BYTES) return;
+        if (stderrCapped) return;
         const remaining = MAX_OUTPUT_BYTES - stderrLen;
         const chunk = data.length > remaining ? data.subarray(0, remaining) : data;
         stderrChunks.push(chunk);
         stderrLen += chunk.length;
-        if (stderrLen >= MAX_OUTPUT_BYTES) child.stderr.destroy();
+        if (stderrLen >= MAX_OUTPUT_BYTES) {
+          stderrCapped = true;
+          child.stderr.destroy();
+          killIfFullyCapped();
+        }
       });
 
       let timer: ReturnType<typeof setTimeout> | undefined;

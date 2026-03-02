@@ -62,14 +62,17 @@ function getThinkingBudget(
   return custom?.[level] ?? DEFAULT_THINKING_BUDGETS[level];
 }
 
-function buildToolDefs(
-  tools: Tool[],
-  runtime: Runtime,
-  hooks?: LoopHooks,
-  onToolProgress?: LoopConfig["onToolProgress"],
-  sessionId?: string,
-  messages?: readonly ModelMessage[],
-): Record<string, unknown> {
+type BuildToolDefsOpts = {
+  tools: Tool[];
+  runtime: Runtime;
+  hooks?: LoopHooks;
+  onToolProgress?: LoopConfig["onToolProgress"];
+  sessionId?: string;
+  messages?: readonly ModelMessage[];
+};
+
+function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
+  const { tools, runtime, hooks, onToolProgress, sessionId, messages } = opts;
   const toolDefs: Record<string, unknown> = {};
   for (const t of tools) {
     toolDefs[t.name] = tool({
@@ -104,8 +107,8 @@ function buildToolDefs(
             runtime,
             signal: options.abortSignal,
             onProgress,
-            sessionId: sessionId ?? "",
-            messages: messages ?? [],
+            sessionId,
+            messages,
           });
 
           let raw: string | ToolResult;
@@ -177,7 +180,15 @@ export async function* loop(
   // Clone so we never mutate the caller's array
   const msgs = [...messages];
 
-  const toolDefs = buildToolDefs(tools, runtime, hooks, config.onToolProgress, sessionId, msgs);
+  const baseToolOpts: BuildToolDefsOpts = {
+    tools,
+    runtime,
+    hooks,
+    onToolProgress: config.onToolProgress,
+    sessionId,
+    messages: msgs,
+  };
+  const toolDefs = buildToolDefs(baseToolOpts);
 
   const budget = getThinkingBudget(thinkingLevel, thinkingBudgets);
   const resolvedProviderOptions =
@@ -215,14 +226,7 @@ export async function* loop(
       if (decision && typeof decision === "object") {
         if ("system" in decision && decision.system !== undefined) system = decision.system;
         if ("tools" in decision && decision.tools !== undefined) {
-          currentToolDefs = buildToolDefs(
-            decision.tools,
-            runtime,
-            hooks,
-            config.onToolProgress,
-            sessionId,
-            msgs,
-          );
+          currentToolDefs = buildToolDefs({ ...baseToolOpts, tools: decision.tools });
         }
       }
     }

@@ -90,7 +90,15 @@ export class Agent {
     input: string | ModelMessage | ModelMessage[],
     opts?: { onText?: (text: string) => void; signal?: AbortSignal },
   ): Promise<PromptResult> {
-    const session = await this.createSession();
+    // Use an in-memory store for ephemeral sessions to avoid polluting persistent stores
+    const ephemeralConfig = { ...this.config, store: new InMemorySessionStore() };
+    const session = new Session({
+      id: crypto.randomUUID(),
+      entries: [],
+      leafId: null,
+      config: { ...ephemeralConfig, sendMode: this.defaultSendMode },
+    });
+    this.applyHooks(session);
     const text = await session.prompt(input, opts);
     return { text, messages: session.messages, usage: session.usage };
   }

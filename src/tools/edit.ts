@@ -24,49 +24,15 @@ const schema = z.object({
 // 3. Indentation-flexible match (ignore leading whitespace)
 // ---------------------------------------------------------------------------
 
-function exactMatch(content: string, target: string): number {
-  return content.indexOf(target);
-}
-
-function trimmedMatch(content: string, target: string): { index: number; length: number } | null {
-  const contentLines = content.split("\n");
-  const targetLines = target.split("\n");
-  const trimmedTarget = targetLines.map((l) => l.trim());
-
-  for (let i = 0; i <= contentLines.length - targetLines.length; i++) {
-    let match = true;
-    for (let j = 0; j < targetLines.length; j++) {
-      if (contentLines[i + j]!.trim() !== trimmedTarget[j]) {
-        match = false;
-        break;
-      }
-    }
-    if (match) {
-      const startOffset = contentLines.slice(0, i).join("\n").length + (i > 0 ? 1 : 0);
-      const matchedText = contentLines.slice(i, i + targetLines.length).join("\n");
-      return { index: startOffset, length: matchedText.length };
-    }
-  }
-  return null;
-}
-
-function indentFlexibleMatch(
-  content: string,
-  target: string,
+/** Sliding-window line match with a configurable normalizer. */
+function fuzzyLineMatch(
+  contentLines: string[],
+  targetLines: string[],
+  normalize: (line: string) => string,
 ): { index: number; length: number } | null {
-  const contentLines = content.split("\n");
-  const targetLines = target.split("\n");
-  const strippedTarget = targetLines.map((l) => l.trimStart());
-
+  const normalizedTarget = targetLines.map(normalize);
   for (let i = 0; i <= contentLines.length - targetLines.length; i++) {
-    let match = true;
-    for (let j = 0; j < targetLines.length; j++) {
-      if (contentLines[i + j]!.trimStart() !== strippedTarget[j]) {
-        match = false;
-        break;
-      }
-    }
-    if (match) {
+    if (targetLines.every((_, j) => normalize(contentLines[i + j]!) === normalizedTarget[j])) {
       const startOffset = contentLines.slice(0, i).join("\n").length + (i > 0 ? 1 : 0);
       const matchedText = contentLines.slice(i, i + targetLines.length).join("\n");
       return { index: startOffset, length: matchedText.length };
@@ -77,18 +43,17 @@ function indentFlexibleMatch(
 
 function findMatch(content: string, target: string): { index: number; length: number } | null {
   // Strategy 1: Exact match
-  const exactIdx = exactMatch(content, target);
+  const exactIdx = content.indexOf(target);
   if (exactIdx !== -1) return { index: exactIdx, length: target.length };
 
-  // Strategy 2: Trimmed whitespace
-  const trimmed = trimmedMatch(content, target);
-  if (trimmed) return trimmed;
+  // Strategies 2-3: fuzzy line matching (split once, reuse)
+  const contentLines = content.split("\n");
+  const targetLines = target.split("\n");
 
-  // Strategy 3: Indentation-flexible
-  const indentFlex = indentFlexibleMatch(content, target);
-  if (indentFlex) return indentFlex;
-
-  return null;
+  return (
+    fuzzyLineMatch(contentLines, targetLines, (l) => l.trim()) ??
+    fuzzyLineMatch(contentLines, targetLines, (l) => l.trimStart())
+  );
 }
 
 function applyEdit(content: string, oldStr: string, newStr: string, replaceAll: boolean): string {
@@ -97,12 +62,20 @@ function applyEdit(content: string, oldStr: string, newStr: string, replaceAll: 
     if (content.includes(oldStr)) {
       return content.split(oldStr).join(newStr);
     }
-    // Fuzzy replace_all: find all matches and replace
+    // Fuzzy replace_all: collect all match positions, then apply back-to-front
+    const matches: { index: number; length: number }[] = [];
+    let searchFrom = 0;
+    while (searchFrom < content.length) {
+      const match = findMatch(content.slice(searchFrom), oldStr);
+      if (!match) break;
+      matches.push({ index: searchFrom + match.index, length: match.length });
+      searchFrom += match.index + match.length;
+    }
+    if (matches.length === 0) return content;
     let result = content;
-    let match = findMatch(result, oldStr);
-    while (match) {
-      result = result.slice(0, match.index) + newStr + result.slice(match.index + match.length);
-      match = findMatch(result, oldStr);
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const m = matches[i]!;
+      result = result.slice(0, m.index) + newStr + result.slice(m.index + m.length);
     }
     return result;
   }

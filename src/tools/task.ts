@@ -9,7 +9,7 @@ import type { LanguageModel } from "ai";
 import { z } from "zod/v4";
 import { loop } from "../loop";
 import type { ModelMessage, Tool, ToolContext } from "../types";
-import { getMessageText } from "../utils";
+import { getLastAssistantText } from "../utils";
 
 const taskSchema = z.object({
   prompt: z.string().describe("The task to perform"),
@@ -45,20 +45,17 @@ export function createTaskTool(config: TaskToolConfig): Tool {
         { role: "user", content: [{ type: "text", text: prompt }] },
       ];
 
-      let lastAssistantText = "";
-
       for await (const event of loop(
         messages,
         { model, tools, runtime: ctx.runtime, maxSteps, systemPrompt },
         ctx.signal,
       )) {
-        if (event.type === "message" && event.message.role === "assistant") {
-          const text = getMessageText(event.message);
-          if (text) lastAssistantText = text;
+        if (event.type === "message") {
+          messages.push(event.message);
         }
       }
 
-      return lastAssistantText || "(no response from subtask)";
+      return getLastAssistantText(messages) || "(no response from subtask)";
     },
   };
 }

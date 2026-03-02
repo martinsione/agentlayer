@@ -19,7 +19,7 @@ import type {
   ThinkingLevel,
   ThinkingBudgets,
 } from "./types";
-import { getMessageText } from "./utils";
+import { getLastAssistantText, getMessageText } from "./utils";
 
 type Listener<T> = (event: T) => unknown | Promise<unknown>;
 
@@ -39,13 +39,11 @@ type SessionConfig = LoopConfig & {
   compaction?: CompactionConfig;
 };
 
-export function buildContext(entries: SessionEntry[], leafId: string | null): ModelMessage[] {
+/** Walk from leaf to root and return the path in root-to-leaf order. */
+function walkPath(entries: SessionEntry[], leafId: string | null): SessionEntry[] {
   if (leafId === null || entries.length === 0) return [];
-
   const index = new Map<string, SessionEntry>();
   for (const e of entries) index.set(e.id, e);
-
-  // Walk from leaf to root (with cycle detection)
   const path: SessionEntry[] = [];
   const visited = new Set<string>();
   let current: SessionEntry | undefined = index.get(leafId);
@@ -56,6 +54,12 @@ export function buildContext(entries: SessionEntry[], leafId: string | null): Mo
     current = current.parentId ? index.get(current.parentId) : undefined;
   }
   path.reverse();
+  return path;
+}
+
+export function buildContext(entries: SessionEntry[], leafId: string | null): ModelMessage[] {
+  const path = walkPath(entries, leafId);
+  if (path.length === 0) return [];
 
   // Find most recent compaction entry on the path
   let compactionIdx = -1;
@@ -203,23 +207,7 @@ export class Session {
     input: string | ModelMessage | ModelMessage[],
     opts?: { onText?: (text: string) => void; signal?: AbortSignal },
   ): Promise<string> {
-    let unsub: (() => void) | undefined;
-    if (opts?.onText) {
-      unsub = this.on("text-delta", (e) => opts.onText!(e.text));
-    }
-    this.send(input, { signal: opts?.signal });
-    try {
-      await this.waitForIdle();
-    } finally {
-      unsub?.();
-    }
-    // Return last assistant message text
-    for (let i = this._messages.length - 1; i >= 0; i--) {
-      if (this._messages[i]!.role === "assistant") {
-        return getMessageText(this._messages[i]!);
-      }
-    }
-    return "";
+    return this.sendAndAwait(input, opts);
   }
 
   steer(input: string | ModelMessage | ModelMessage[]): void {
@@ -234,22 +222,24 @@ export class Session {
     onText?: (text: string) => void;
     signal?: AbortSignal;
   }): Promise<string> {
+    return this.sendAndAwait([], opts);
+  }
+
+  private async sendAndAwait(
+    input: string | ModelMessage | ModelMessage[],
+    opts?: { onText?: (text: string) => void; signal?: AbortSignal },
+  ): Promise<string> {
     let unsub: (() => void) | undefined;
     if (opts?.onText) {
       unsub = this.on("text-delta", (e) => opts.onText!(e.text));
     }
-    this.send([], { signal: opts?.signal });
+    this.send(input, { signal: opts?.signal });
     try {
       await this.waitForIdle();
     } finally {
       unsub?.();
     }
-    for (let i = this._messages.length - 1; i >= 0; i--) {
-      if (this._messages[i]!.role === "assistant") {
-        return getMessageText(this._messages[i]!);
-      }
-    }
-    return "";
+    return getLastAssistantText(this._messages);
   }
 
   abort(): void {
@@ -273,7 +263,7 @@ export class Session {
     const summary = await summarize(this._messages.slice(0, this._messages.length - keepLast));
 
     // Find entry IDs on the current path (leaf to root)
-    const path = this.getPath();
+    const path = walkPath(this.entries, this._leafId);
 
     // Count message entries on the path to find the firstKeptId
     let msgCount = 0;
@@ -302,23 +292,6 @@ export class Session {
     this._leafId = compactionEntry.id;
     await this.config.store.append(this.id, compactionEntry);
     this._messages = buildContext(this.entries, this._leafId);
-  }
-
-  private getPath(): SessionEntry[] {
-    const index = new Map<string, SessionEntry>();
-    for (const e of this.entries) index.set(e.id, e);
-
-    const path: SessionEntry[] = [];
-    const visited = new Set<string>();
-    let current = this._leafId ? index.get(this._leafId) : undefined;
-    while (current) {
-      if (visited.has(current.id)) break;
-      visited.add(current.id);
-      path.push(current);
-      current = current.parentId ? index.get(current.parentId) : undefined;
-    }
-    path.reverse();
-    return path;
   }
 
   private appendEntry(message: ModelMessage): MessageEntry {

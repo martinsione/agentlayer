@@ -10,6 +10,7 @@ export type ExecResult = { stdout: string; stderr: string; exitCode: number };
 
 export type ExecOptions = {
   cwd?: string;
+  /** Timeout in seconds. Runtime implementations must convert to milliseconds where needed. */
   timeout?: number;
   signal?: AbortSignal;
   /** Streaming callback — called with each chunk of combined stdout+stderr output. */

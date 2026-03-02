@@ -1,6 +1,5 @@
 import type { ModelMessage } from "@ai-sdk/provider-utils";
 import type { LoopConfig } from "./loop";
-import { NodeRuntime } from "./runtime/node";
 import { Session } from "./session";
 import { InMemorySessionStore } from "./store/memory";
 import { createTaskTool } from "./tools/task";
@@ -10,14 +9,20 @@ import type {
   CompactionConfig,
   HookEvent,
   PromptResult,
+  Runtime,
   SessionOptions,
   SessionStore,
 } from "./types";
 
 const DEFAULT_MAX_STEPS = 100;
 
+async function getDefaultRuntime(): Promise<Runtime> {
+  const { NodeRuntime } = await import("./runtime/node");
+  return new NodeRuntime();
+}
+
 export class Agent {
-  private readonly config: LoopConfig & { store: SessionStore; compaction?: CompactionConfig };
+  private readonly configPromise: Promise<LoopConfig & { store: SessionStore; compaction?: CompactionConfig }>;
   private readonly defaultSendMode: AgentOptions["sendMode"];
   private readonly hooks: AgentHooks | undefined;
   private readonly onEvent: AgentOptions["onEvent"];
@@ -27,45 +32,53 @@ export class Agent {
     this.hooks = config.hooks;
     this.onEvent = config.onEvent;
     const { hooks: _, onEvent: __, subagents: ___, ...rest } = config;
-    this.config = {
-      ...rest,
-      compaction: config.compaction,
-      tools: config.tools ?? [],
-      runtime: config.runtime ?? new NodeRuntime(),
-      store: config.store ?? new InMemorySessionStore(),
-      maxSteps: config.maxSteps ?? DEFAULT_MAX_STEPS,
-    };
 
-    if (config.subagents) {
-      const subagentTools = Object.entries(config.subagents).map(([name, sub]) =>
-        createTaskTool({
-          name: `task_${name}`,
-          description: sub.description,
-          model: sub.model ?? this.config.model,
-          tools: sub.tools ?? this.config.tools,
-          instructions: sub.instructions,
-          maxSteps: sub.maxSteps ?? 50,
-        }),
-      );
-      this.config.tools = [...this.config.tools, ...subagentTools];
-    }
+    const runtimePromise = config.runtime ? Promise.resolve(config.runtime) : getDefaultRuntime();
+    this.configPromise = runtimePromise.then((runtime) => {
+      const cfg: LoopConfig & { store: SessionStore; compaction?: CompactionConfig } = {
+        ...rest,
+        compaction: config.compaction,
+        tools: config.tools ?? [],
+        runtime,
+        store: config.store ?? new InMemorySessionStore(),
+        maxSteps: config.maxSteps ?? DEFAULT_MAX_STEPS,
+      };
+
+      if (config.subagents) {
+        const subagentTools = Object.entries(config.subagents).map(([name, sub]) =>
+          createTaskTool({
+            name: `task_${name}`,
+            description: sub.description,
+            model: sub.model ?? cfg.model,
+            tools: sub.tools ?? cfg.tools,
+            instructions: sub.instructions,
+            maxSteps: sub.maxSteps ?? 50,
+          }),
+        );
+        cfg.tools = [...cfg.tools, ...subagentTools];
+      }
+
+      return cfg;
+    });
   }
 
   async createSession(opts?: SessionOptions & { id?: string }): Promise<Session> {
+    const config = await this.configPromise;
     const sessionId = opts?.id ?? crypto.randomUUID();
     const sendMode = opts?.sendMode ?? this.defaultSendMode;
     const session = new Session({
       id: sessionId,
       entries: [],
       leafId: null,
-      config: { ...this.config, sendMode },
+      config: { ...config, sendMode },
     });
     this.applyHooks(session);
     return session;
   }
 
   async resumeSession(id: string, opts?: SessionOptions & { leafId?: string }): Promise<Session> {
-    const { store } = this.config;
+    const config = await this.configPromise;
+    const { store } = config;
     const entries = await store.load(id);
     if (entries.length === 0 && !(await store.exists(id))) {
       throw new Error(`Session not found: ${id}`);
@@ -75,21 +88,23 @@ export class Agent {
     if (opts?.leafId && !entries.some((e) => e.id === opts.leafId)) {
       throw new Error(`Entry not found: ${opts.leafId}`);
     }
-    const session = new Session({ id, entries, leafId, config: { ...this.config, sendMode } });
+    const session = new Session({ id, entries, leafId, config: { ...config, sendMode } });
     this.applyHooks(session);
     return session;
   }
 
   async listSessions(): Promise<string[]> {
-    return this.config.store.list();
+    const config = await this.configPromise;
+    return config.store.list();
   }
 
   async prompt(
     input: string | ModelMessage | ModelMessage[],
     opts?: { onText?: (text: string) => void; signal?: AbortSignal },
   ): Promise<PromptResult> {
+    const config = await this.configPromise;
     // Use an in-memory store for ephemeral sessions to avoid polluting persistent stores
-    const ephemeralConfig = { ...this.config, store: new InMemorySessionStore() };
+    const ephemeralConfig = { ...config, store: new InMemorySessionStore() };
     const session = new Session({
       id: crypto.randomUUID(),
       entries: [],

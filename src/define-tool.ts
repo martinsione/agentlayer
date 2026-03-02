@@ -28,6 +28,7 @@ type ZodObjectSchema = z.ZodObject<z.core.$ZodLooseShape>;
  */
 export function defineTool<TSchema extends ZodObjectSchema>(opts: {
   name: string;
+  label?: string;
   description: string;
   schema: TSchema;
   execute: (input: z.infer<TSchema>, ctx: ToolContext) => ToolExecuteReturn;
@@ -35,6 +36,7 @@ export function defineTool<TSchema extends ZodObjectSchema>(opts: {
 }): Tool<z.infer<TSchema>> {
   return {
     name: opts.name,
+    ...(opts.label && { label: opts.label }),
     description: opts.description,
     parameters: z.toJSONSchema(opts.schema, { target: "draft-7" }) as Record<string, unknown>,
     execute: opts.execute as Tool<z.infer<TSchema>>["execute"],

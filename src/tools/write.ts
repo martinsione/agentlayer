@@ -18,6 +18,7 @@ const schema = z.object({
 export function createWriteTool(cwd?: string): Tool {
   return defineTool({
     name: "write",
+    label: "Write File",
     description:
       "Write content to a file. Creates the file if it does not exist, and creates parent directories as needed. Provide an absolute path or a path relative to the working directory.",
     schema,

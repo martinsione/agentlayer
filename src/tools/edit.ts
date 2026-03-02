@@ -92,6 +92,7 @@ function applyEdit(content: string, oldStr: string, newStr: string, replaceAll: 
 export function createEditTool(cwd?: string): Tool {
   return defineTool({
     name: "edit",
+    label: "Edit File",
     description:
       "Edit a file by replacing a specific string with a new string. " +
       "Provide the exact text to find (old_string) and the replacement (new_string). " +

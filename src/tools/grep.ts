@@ -23,6 +23,7 @@ const schema = z.object({
 export function createGrepTool(cwd?: string): Tool {
   return defineTool({
     name: "grep",
+    label: "Search Files",
     description:
       "Search file contents for a regex pattern using grep -rn. Returns matched lines with file:line prefix, truncated to 50KB.",
     schema,

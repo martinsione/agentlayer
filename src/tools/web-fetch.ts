@@ -6,6 +6,7 @@ const DEFAULT_MAX_BYTES = 50 * 1024;
 
 export const WebFetchTool = defineTool({
   name: "web_fetch",
+  label: "Web Fetch",
   description: "Fetch a URL and return the response body. Output is truncated to 50KB.",
   schema: z.object({
     url: z.string().describe("The URL to fetch"),

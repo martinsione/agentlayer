@@ -21,6 +21,7 @@ const schema = z.object({
 export function createGlobTool(cwd?: string): Tool {
   return defineTool({
     name: "glob",
+    label: "Find Files",
     description: `Find files matching a glob pattern. Returns one file path per line, limited to ${MAX_RESULTS} results. Paths are relative to the search directory.`,
     schema,
     execute: async (input, ctx) => {

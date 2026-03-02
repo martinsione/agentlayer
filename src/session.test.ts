@@ -109,6 +109,7 @@ describe("Session.send", () => {
     expect(beforeToolCalls[0]).toEqual({
       toolCallId: "call-1",
       toolName: "bash",
+      toolLabel: "Shell Command",
       input: { command: "echo hi" },
       needsApproval: false,
     });

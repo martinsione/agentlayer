@@ -19,6 +19,7 @@ const schema = z.object({
 export function createReadTool(cwd?: string): Tool {
   return defineTool({
     name: "read",
+    label: "Read File",
     description:
       "Read the contents of a file. Output is truncated to 100KB. Provide an absolute path or a path relative to the working directory.",
     schema,

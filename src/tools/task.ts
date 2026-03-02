@@ -21,6 +21,7 @@ export type TaskToolConfig = {
   instructions?: string;
   maxSteps?: number;
   name?: string;
+  label?: string;
   description?: string;
 };
 
@@ -31,11 +32,13 @@ export function createTaskTool(config: TaskToolConfig): Tool {
     instructions,
     maxSteps = 50,
     name = "task",
+    label = "Task",
     description = "Run a subtask by spawning a nested agent loop with the given prompt.",
   } = config;
 
   return {
     name,
+    label,
     description,
     parameters: z.toJSONSchema(taskSchema, { target: "draft-7" }) as Record<string, unknown>,
     execute: async (input: Record<string, unknown>, ctx: ToolContext): Promise<string> => {

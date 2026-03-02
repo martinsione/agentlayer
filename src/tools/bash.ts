@@ -53,6 +53,7 @@ export function createBashTool(cwd?: string, options?: BashToolOptions): Tool {
 
   return {
     name: "bash",
+    label: "Shell Command",
     description: `Execute a bash command in the working directory. Output is truncated to the last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB. If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
     parameters: z.toJSONSchema(bashSchema, { target: "draft-7" }) as Record<string, unknown>,
     execute: async (input: Record<string, unknown>, ctx: ToolContext): Promise<string> => {

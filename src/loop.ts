@@ -89,6 +89,7 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
           const decision = await hooks.beforeToolCall({
             toolCallId: options.toolCallId,
             toolName: t.name,
+            toolLabel: t.label,
             input: resolvedInput,
             needsApproval: approval,
           });
@@ -138,6 +139,7 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
             await hooks.afterToolCall({
               toolCallId: options.toolCallId,
               toolName: t.name,
+              toolLabel: t.label,
               input: resolvedInput,
               error: err instanceof Error ? err : new Error(String(err)),
             });
@@ -149,6 +151,7 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
           const decision = await hooks.afterToolCall({
             toolCallId: options.toolCallId,
             toolName: t.name,
+            toolLabel: t.label,
             input: resolvedInput,
             result,
             metadata,

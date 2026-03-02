@@ -51,6 +51,8 @@ export type ToolExecuteReturn =
 
 export interface Tool<TInput = any> {
   name: string;
+  /** Human-readable display name for UIs. Falls back to name if not set. */
+  label?: string;
   description: string;
   parameters: Record<string, unknown>; // JSON Schema
   execute(input: TInput, ctx: ToolContext): ToolExecuteReturn;
@@ -108,6 +110,7 @@ export type TurnStartEvent = {};
 export type BeforeToolCallEvent = {
   toolCallId: string;
   toolName: string;
+  toolLabel?: string;
   input: Record<string, unknown>;
   needsApproval: boolean;
 };
@@ -120,6 +123,7 @@ export type ToolCallDecision =
 export type AfterToolCallEvent = {
   toolCallId: string;
   toolName: string;
+  toolLabel?: string;
   input: Record<string, unknown>;
 } & (
   | { result: string; metadata?: Record<string, unknown>; error?: undefined }

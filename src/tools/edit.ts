@@ -65,8 +65,8 @@ function applyEdit(
   if (replaceAll) {
     // For replace_all, try exact first, fall back to line-by-line
     if (content.includes(oldStr)) {
-      const count = content.split(oldStr).length - 1;
-      return { result: content.split(oldStr).join(newStr), count };
+      const parts = content.split(oldStr);
+      return { result: parts.join(newStr), count: parts.length - 1 };
     }
     // Fuzzy replace_all: collect all match positions, then apply back-to-front
     const matches: { index: number; length: number }[] = [];
@@ -131,10 +131,6 @@ export function createEditTool(cwd?: string): Tool {
         input.new_string,
         input.replace_all,
       );
-
-      if (content === updated) {
-        return "No changes were made — the old_string was not found in the file.";
-      }
 
       await ctx.runtime.writeFile(filePath, updated);
 

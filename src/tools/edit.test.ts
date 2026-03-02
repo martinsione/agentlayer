@@ -87,7 +87,7 @@ describe("EditTool", () => {
   test("throws when old_string not found", async () => {
     const file = join(tmpDir, "notfound.txt");
     await writeFile(file, "hello world");
-    expect(
+    await expect(
       tool.execute({ path: file, old_string: "nonexistent", new_string: "new" }, ctx),
     ).rejects.toThrow("Could not find");
   });
@@ -143,7 +143,7 @@ describe("EditTool", () => {
   });
 
   test("throws on non-existent file", async () => {
-    expect(
+    await expect(
       tool.execute({ path: "does-not-exist.txt", old_string: "a", new_string: "b" }, ctx),
     ).rejects.toThrow();
   });
@@ -151,7 +151,7 @@ describe("EditTool", () => {
   test("throws when old_string is empty", async () => {
     const file = join(tmpDir, "empty-old.txt");
     await writeFile(file, "hello world");
-    expect(
+    await expect(
       tool.execute({ path: file, old_string: "", new_string: "prepend" }, ctx),
     ).rejects.toThrow("old_string must not be empty");
   });
@@ -159,7 +159,7 @@ describe("EditTool", () => {
   test("throws when old_string is empty with replace_all", async () => {
     const file = join(tmpDir, "empty-old-all.txt");
     await writeFile(file, "hello world");
-    expect(
+    await expect(
       tool.execute({ path: file, old_string: "", new_string: "X", replace_all: true }, ctx),
     ).rejects.toThrow("old_string must not be empty");
   });
@@ -167,7 +167,7 @@ describe("EditTool", () => {
   test("throws when replace_all finds no matches", async () => {
     const file = join(tmpDir, "replace-all-no-match.txt");
     await writeFile(file, "hello world");
-    expect(
+    await expect(
       tool.execute(
         { path: file, old_string: "nonexistent", new_string: "new", replace_all: true },
         ctx,

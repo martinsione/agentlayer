@@ -26,11 +26,9 @@ export class Agent {
     this.defaultSendMode = config.sendMode;
     this.hooks = config.hooks;
     this.onEvent = config.onEvent;
-    const systemPrompt = config.instructions ?? config.systemPrompt;
-    const { hooks: _, instructions: __, onEvent: ___, subagents: ____, ...rest } = config;
+    const { hooks: _, onEvent: __, subagents: ___, ...rest } = config;
     this.config = {
       ...rest,
-      systemPrompt,
       compaction: config.compaction,
       tools: config.tools ?? [],
       runtime: config.runtime ?? new NodeRuntime(),
@@ -45,7 +43,7 @@ export class Agent {
           description: sub.description,
           model: sub.model ?? this.config.model,
           tools: sub.tools ?? this.config.tools,
-          systemPrompt: sub.instructions,
+          instructions: sub.instructions,
           maxSteps: sub.maxSteps ?? 50,
         }),
       );

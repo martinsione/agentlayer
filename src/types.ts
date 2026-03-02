@@ -291,8 +291,6 @@ export type SubagentConfig = {
 export type SessionOptions = { sendMode?: SendMode };
 export type AgentOptions = {
   model: LanguageModel;
-  /** @deprecated Use `instructions` instead. */
-  systemPrompt?: string;
   /** System prompt / instructions for the agent. */
   instructions?: string;
   tools?: Tool[];

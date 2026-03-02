@@ -246,7 +246,7 @@ new Agent({ model, runtime: new VercelSandboxRuntime({ sandbox }) });
 ```ts
 const agent = new Agent({
   model,                              // LanguageModel (required)
-  instructions: "You are a ...",      // system prompt (or systemPrompt)
+  instructions: "You are a ...",      // system prompt
   tools: [BashTool, WebFetchTool],    // optional
   runtime: new NodeRuntime(),         // optional, default: NodeRuntime
   store: new InMemorySessionStore(),  // optional, default: InMemorySessionStore

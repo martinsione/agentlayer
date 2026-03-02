@@ -57,7 +57,7 @@ describe("createTaskTool", () => {
     const taskTool = createTaskTool({
       model: innerModel,
       tools: [echoTool],
-      systemPrompt: "You are a helpful echo agent.",
+      instructions: "You are a helpful echo agent.",
     });
 
     // Outer model calls the task tool

@@ -171,20 +171,12 @@ export class Session {
     this.config.tools = tools;
   }
 
-  get systemPrompt(): string | undefined {
-    return this.config.systemPrompt;
-  }
-
-  set systemPrompt(prompt: string | undefined) {
-    this.config.systemPrompt = prompt;
-  }
-
   get instructions(): string | undefined {
-    return this.config.systemPrompt;
+    return this.config.instructions;
   }
 
   set instructions(prompt: string | undefined) {
-    this.config.systemPrompt = prompt;
+    this.config.instructions = prompt;
   }
 
   get thinkingLevel(): ThinkingLevel | undefined {

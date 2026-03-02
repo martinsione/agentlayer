@@ -458,11 +458,10 @@ describe("Agent instructions alias", () => {
     expect((systemMsg as any).content).toBe("You are a pirate.");
   });
 
-  test("instructions takes precedence over systemPrompt", async () => {
+  test("instructions is passed as system prompt to the model", async () => {
     const model = createMockModel([{ text: "Hi" }]);
     const agent = new Agent({
       model,
-      systemPrompt: "old",
       instructions: "new",
       runtime: new JustBashRuntime(),
       store: new InMemorySessionStore(),

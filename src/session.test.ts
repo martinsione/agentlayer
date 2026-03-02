@@ -1069,7 +1069,7 @@ describe("Session.prompt", () => {
   });
 });
 
-describe("Session dynamic config (model, tools, systemPrompt)", () => {
+describe("Session dynamic config (model, tools, instructions)", () => {
   test("changing model between turns uses the new model on the next send", async () => {
     const model1 = createMockModel([{ text: "From model 1" }]);
     const model2 = createMockModel([{ text: "From model 2" }]);
@@ -1177,7 +1177,7 @@ describe("Session dynamic config (model, tools, systemPrompt)", () => {
     expect(session.tools).toHaveLength(0);
   });
 
-  test("changing systemPrompt between turns sends the new prompt", async () => {
+  test("changing instructions between turns sends the new prompt", async () => {
     const { agent, model } = createTestAgent([{ text: "Reply 1" }, { text: "Reply 2" }]);
     const session = await agent.createSession();
 
@@ -1185,8 +1185,8 @@ describe("Session dynamic config (model, tools, systemPrompt)", () => {
     session.send("Hello");
     await session.waitForIdle();
 
-    // Switch system prompt between turns
-    session.systemPrompt = "You are a helpful pirate.";
+    // Switch instructions between turns
+    session.instructions = "You are a helpful pirate.";
 
     // Second turn
     session.send("Hello again");
@@ -1203,17 +1203,17 @@ describe("Session dynamic config (model, tools, systemPrompt)", () => {
     );
   });
 
-  test("systemPrompt getter returns the current system prompt", async () => {
+  test("instructions getter returns the current instructions", async () => {
     const { agent } = createTestAgent([{ text: "Hi" }]);
     const session = await agent.createSession();
 
-    expect(session.systemPrompt).toBeUndefined();
+    expect(session.instructions).toBeUndefined();
 
-    session.systemPrompt = "New prompt";
-    expect(session.systemPrompt).toBe("New prompt");
+    session.instructions = "New prompt";
+    expect(session.instructions).toBe("New prompt");
 
-    session.systemPrompt = undefined;
-    expect(session.systemPrompt).toBeUndefined();
+    session.instructions = undefined;
+    expect(session.instructions).toBeUndefined();
   });
 
   test("changes during an active turn take effect on the next turn, not the current one", async () => {
@@ -1253,7 +1253,7 @@ describe("Session dynamic config (model, tools, systemPrompt)", () => {
     expect(model2.doStreamCalls).toHaveLength(1);
   });
 
-  test("instructions getter/setter aliases systemPrompt", async () => {
+  test("instructions getter/setter works correctly", async () => {
     const { agent } = createTestAgent([{ text: "Hi" }]);
     const session = await agent.createSession();
 
@@ -1261,9 +1261,8 @@ describe("Session dynamic config (model, tools, systemPrompt)", () => {
 
     session.instructions = "Be concise.";
     expect(session.instructions).toBe("Be concise.");
-    expect(session.systemPrompt).toBe("Be concise.");
 
-    session.systemPrompt = "Be verbose.";
+    session.instructions = "Be verbose.";
     expect(session.instructions).toBe("Be verbose.");
   });
 });

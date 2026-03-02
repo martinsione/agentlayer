@@ -32,7 +32,7 @@ export type LoopHooks = {
 
 export type LoopConfig = {
   model: LanguageModel;
-  systemPrompt?: string;
+  instructions?: string;
   tools: Tool[];
   runtime: Runtime;
   maxSteps: number;
@@ -163,7 +163,7 @@ export async function* loop(
 ): AsyncGenerator<LoopEvent> {
   const {
     model,
-    systemPrompt,
+    instructions,
     tools,
     runtime,
     maxSteps,
@@ -218,7 +218,7 @@ export async function* loop(
       for (const msg of steering) msgs.push(msg);
     }
 
-    let system = systemPrompt;
+    let system = instructions;
     let currentToolDefs = toolDefs;
 
     if (hooks?.beforeModelCall) {

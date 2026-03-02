@@ -18,7 +18,7 @@ const taskSchema = z.object({
 export type TaskToolConfig = {
   model: LanguageModel;
   tools?: Tool[];
-  systemPrompt?: string;
+  instructions?: string;
   maxSteps?: number;
   name?: string;
   description?: string;
@@ -28,7 +28,7 @@ export function createTaskTool(config: TaskToolConfig): Tool {
   const {
     model,
     tools = [],
-    systemPrompt,
+    instructions,
     maxSteps = 50,
     name = "task",
     description = "Run a subtask by spawning a nested agent loop with the given prompt.",
@@ -47,7 +47,7 @@ export function createTaskTool(config: TaskToolConfig): Tool {
 
       for await (const event of loop(
         messages,
-        { model, tools, runtime: ctx.runtime, maxSteps, systemPrompt },
+        { model, tools, runtime: ctx.runtime, maxSteps, instructions },
         ctx.signal,
       )) {
         if (event.type === "message") {

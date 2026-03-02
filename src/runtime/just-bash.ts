@@ -1,6 +1,7 @@
 import { dirname } from "node:path";
 import { Bash } from "just-bash";
 import type { IFileSystem } from "just-bash";
+import { RuntimeAbortError, RuntimeTimeoutError } from "../errors";
 import type { Runtime, ExecResult, ExecOptions } from "../types";
 
 export type JustBashRuntimeOptions = {
@@ -53,6 +54,12 @@ export class JustBashRuntime implements Runtime {
 
       try {
         result = await Promise.race([execPromise, abortPromise]);
+      } catch (err) {
+        if (err instanceof Error) {
+          if (err.name === "TimeoutError") throw new RuntimeTimeoutError(timeoutSecs ?? 0);
+          if (err.name === "AbortError") throw new RuntimeAbortError();
+        }
+        throw err;
       } finally {
         if (abortListener) signal.removeEventListener("abort", abortListener);
       }

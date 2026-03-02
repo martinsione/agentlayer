@@ -1,4 +1,5 @@
 import type { Sandbox } from "@vercel/sandbox";
+import { RuntimeAbortError, RuntimeTimeoutError } from "../errors";
 import type { Runtime, ExecResult, ExecOptions } from "../types";
 
 export type SandboxRuntimeOptions = {
@@ -22,23 +23,31 @@ export class VercelSandboxRuntime implements Runtime {
       signal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
     }
 
-    const result = await this.sandbox.runCommand({
-      cmd: "sh",
-      args: ["-c", command],
-      cwd: opts?.cwd ?? this.cwd,
-      signal,
-    });
+    try {
+      const result = await this.sandbox.runCommand({
+        cmd: "sh",
+        args: ["-c", command],
+        cwd: opts?.cwd ?? this.cwd,
+        signal,
+      });
 
-    const stdout = await result.stdout();
-    const stderr = await result.stderr();
+      const stdout = await result.stdout();
+      const stderr = await result.stderr();
 
-    // Simulate onData with final output (sandbox doesn't support streaming)
-    if (opts?.onData) {
-      const combined = stdout + stderr;
-      if (combined) opts.onData(Buffer.from(combined, "utf-8"));
+      // Simulate onData with final output (sandbox doesn't support streaming)
+      if (opts?.onData) {
+        const combined = stdout + stderr;
+        if (combined) opts.onData(Buffer.from(combined, "utf-8"));
+      }
+
+      return { stdout, stderr, exitCode: result.exitCode };
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.name === "TimeoutError") throw new RuntimeTimeoutError(opts?.timeout ?? 0);
+        if (err.name === "AbortError") throw new RuntimeAbortError();
+      }
+      throw err;
     }
-
-    return { stdout, stderr, exitCode: result.exitCode };
   }
 
   async readFile(path: string): Promise<string> {

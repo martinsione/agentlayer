@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { WebFetchTool } from "./web-fetch";
+import { WebFetchTool, createWebFetchTool } from "./web-fetch";
 
 const runtime = {} as never; // WebFetchTool doesn't use runtime
 
@@ -91,5 +91,29 @@ describe("WebFetchTool", () => {
     const result = (await WebFetchTool.execute({ url: `${baseUrl}/nope` }, { runtime })) as string;
 
     expect(result).toContain("Status: 404");
+  });
+});
+
+describe("createWebFetchTool", () => {
+  test("custom maxBytes truncates at the specified limit", async () => {
+    const customMaxBytes = 5 * 1024; // 5 KB
+    const tool = createWebFetchTool({ maxBytes: customMaxBytes });
+
+    const result = await tool.execute({ url: `${baseUrl}/large` }, { runtime });
+
+    expect(result).toContain("[Output truncated at 5.0KB.]");
+    const bodyStart = (result as string).indexOf("\n\n") + 2;
+    const bodyEnd = (result as string).indexOf("\n\n[Output truncated");
+    expect(bodyEnd - bodyStart).toBe(customMaxBytes);
+  });
+
+  test("description reflects custom maxBytes", () => {
+    const tool = createWebFetchTool({ maxBytes: 10 * 1024 });
+    expect(tool.description).toContain("10.0KB");
+  });
+
+  test("default singleton matches defaults", () => {
+    expect(WebFetchTool.name).toBe("web_fetch");
+    expect(WebFetchTool.description).toContain("50.0KB");
   });
 });

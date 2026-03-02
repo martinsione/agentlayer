@@ -114,11 +114,7 @@ export type BeforeToolCallEvent = {
   input: Record<string, unknown>;
   needsApproval: boolean;
 };
-export type ToolCallDecision =
-  | void
-  | undefined
-  | { deny: string }
-  | { input: Record<string, unknown> };
+export type ToolCallDecision = void | { deny: string } | { input: Record<string, unknown> };
 
 export type AfterToolCallEvent = {
   toolCallId: string;
@@ -130,7 +126,7 @@ export type AfterToolCallEvent = {
   | { result?: undefined; error: Error }
 );
 
-export type AfterToolCallDecision = void | undefined | { result: string };
+export type AfterToolCallDecision = void | { result: string };
 
 export type BeforeModelCallEvent = {
   instructions: string | undefined;
@@ -138,12 +134,12 @@ export type BeforeModelCallEvent = {
   messages: readonly ModelMessage[];
 };
 
-export type BeforeModelCallDecision = void | undefined | { instructions?: string; tools?: Tool[] };
+export type BeforeModelCallDecision = void | { instructions?: string; tools?: Tool[] };
 
 export type BeforeStopEvent = {
   messages: readonly ModelMessage[];
 };
-export type BeforeStopDecision = void | undefined | { preventStop: true };
+export type BeforeStopDecision = void | { preventStop: true };
 
 export type HookEventMap = {
   "before-tool-call": { payload: BeforeToolCallEvent; decision: ToolCallDecision };
@@ -156,7 +152,7 @@ export type HookEvent = keyof HookEventMap;
 
 export type HookListener<K extends HookEvent> = (
   event: HookEventMap[K]["payload"],
-) => void | HookEventMap[K]["decision"] | Promise<void | HookEventMap[K]["decision"]>;
+) => HookEventMap[K]["decision"] | Promise<HookEventMap[K]["decision"]>;
 
 export type AgentHooks = {
   [K in HookEvent]?: HookListener<K> | HookListener<K>[];

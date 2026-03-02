@@ -21,10 +21,11 @@ const agent = new Agent({
 });
 
 // One-liner: send + wait + get text
-const { text } = await agent.prompt("How many CPUs does this machine have?");
+const result = await agent.prompt("How many CPUs does this machine have?");
+console.log(result.text);
 
 // Or with streaming
-const { text } = await agent.prompt("How many CPUs?", {
+await agent.prompt("How many CPUs?", {
   onText: (t) => process.stdout.write(t),
 });
 ```
@@ -272,16 +273,16 @@ const agent = new Agent({
 
 ## Built-in tools
 
-| Tool           | Import                       | Description                                        |
-| -------------- | ---------------------------- | -------------------------------------------------- |
-| `BashTool`     | `agentlayer/tools/bash`      | Shell commands with output truncation and timeout  |
-| `ReadTool`     | `agentlayer/tools/read`      | Read file contents (truncated to 100KB)            |
-| `WriteTool`    | `agentlayer/tools/write`     | Write files (creates parent directories)           |
-| `EditTool`     | `agentlayer/tools/edit`      | Search-and-replace with fuzzy matching             |
-| `GlobTool`     | `agentlayer/tools/glob`      | Find files matching glob patterns                  |
-| `GrepTool`     | `agentlayer/tools/grep`      | Search file contents with regex                    |
-| `WebFetchTool` | `agentlayer/tools/web-fetch` | HTTP GET/POST with 15s timeout and 50KB truncation |
-| `TaskTool`     | `agentlayer/tools/task`      | Spawn a nested agent loop as a tool call           |
+| Tool             | Import                       | Description                                        |
+| ---------------- | ---------------------------- | -------------------------------------------------- |
+| `BashTool`       | `agentlayer/tools/bash`      | Shell commands with output truncation and timeout  |
+| `ReadTool`       | `agentlayer/tools/read`      | Read file contents (truncated to 100KB)            |
+| `WriteTool`      | `agentlayer/tools/write`     | Write files (creates parent directories)           |
+| `EditTool`       | `agentlayer/tools/edit`      | Search-and-replace with fuzzy matching             |
+| `GlobTool`       | `agentlayer/tools/glob`      | Find files matching glob patterns                  |
+| `GrepTool`       | `agentlayer/tools/grep`      | Search file contents with regex                    |
+| `WebFetchTool`   | `agentlayer/tools/web-fetch` | HTTP GET/POST with 15s timeout and 50KB truncation |
+| `createTaskTool` | `agentlayer/tools/task`      | Spawn a nested agent loop as a tool call           |
 
 ## Examples
 

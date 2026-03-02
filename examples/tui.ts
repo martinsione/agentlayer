@@ -133,8 +133,8 @@ session.on("text-end", () => {
 });
 
 session.on("tool-call", (e) => {
-  const args = e.input as Record<string, unknown> | undefined;
-  const detail = args?.command ?? args?.url ?? args?.path ?? args?.pattern ?? "";
+  const args = e.input as Record<string, unknown>;
+  const detail = args.command ?? args.url ?? args.path ?? args.pattern ?? "";
   scroll.add(
     new TextRenderable(renderer, {
       id: `tc-${e.toolCallId}`,

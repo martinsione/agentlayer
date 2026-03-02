@@ -169,6 +169,14 @@ export class Session {
     this.config.systemPrompt = prompt;
   }
 
+  get instructions(): string | undefined {
+    return this.config.systemPrompt;
+  }
+
+  set instructions(prompt: string | undefined) {
+    this.config.systemPrompt = prompt;
+  }
+
   get thinkingLevel(): ThinkingLevel | undefined {
     return this.config.thinkingLevel;
   }

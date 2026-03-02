@@ -1252,6 +1252,20 @@ describe("Session dynamic config (model, tools, systemPrompt)", () => {
     await session.waitForIdle();
     expect(model2.doStreamCalls).toHaveLength(1);
   });
+
+  test("instructions getter/setter aliases systemPrompt", async () => {
+    const { agent } = createTestAgent([{ text: "Hi" }]);
+    const session = await agent.createSession();
+
+    expect(session.instructions).toBeUndefined();
+
+    session.instructions = "Be concise.";
+    expect(session.instructions).toBe("Be concise.");
+    expect(session.systemPrompt).toBe("Be concise.");
+
+    session.systemPrompt = "Be verbose.";
+    expect(session.instructions).toBe("Be verbose.");
+  });
 });
 
 describe("Session.steer and Session.followUp", () => {

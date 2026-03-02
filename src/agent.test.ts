@@ -327,3 +327,41 @@ describe("Agent with JsonlSessionStore", () => {
     expect(firstNewEntry.parentId).toBe(lastBeforeResume.id);
   });
 });
+
+describe("Agent instructions alias", () => {
+  test("instructions is used as system prompt", async () => {
+    const model = createMockModel([{ text: "Hi" }]);
+    const agent = new Agent({
+      model,
+      instructions: "You are a pirate.",
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+    });
+    const session = await agent.createSession();
+    session.send("Hello");
+    await session.waitForIdle();
+
+    const call = model.doStreamCalls[0]!;
+    const systemMsg = call.prompt.find((m: { role: string }) => m.role === "system");
+    expect(systemMsg).toBeDefined();
+    expect((systemMsg as any).content).toBe("You are a pirate.");
+  });
+
+  test("instructions takes precedence over systemPrompt", async () => {
+    const model = createMockModel([{ text: "Hi" }]);
+    const agent = new Agent({
+      model,
+      systemPrompt: "old",
+      instructions: "new",
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+    });
+    const session = await agent.createSession();
+    session.send("Hello");
+    await session.waitForIdle();
+
+    const call = model.doStreamCalls[0]!;
+    const systemMsg = call.prompt.find((m: { role: string }) => m.role === "system");
+    expect((systemMsg as any).content).toBe("new");
+  });
+});

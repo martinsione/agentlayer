@@ -22,9 +22,11 @@ export class Agent {
   constructor(config: AgentOptions) {
     this.defaultSendMode = config.sendMode;
     this.hooks = config.hooks;
-    const { hooks: _, ...rest } = config;
+    const systemPrompt = config.instructions ?? config.systemPrompt;
+    const { hooks: _, instructions: __, ...rest } = config;
     this.config = {
       ...rest,
+      systemPrompt,
       tools: config.tools ?? [],
       runtime: config.runtime ?? new NodeRuntime(),
       store: config.store ?? new InMemorySessionStore(),

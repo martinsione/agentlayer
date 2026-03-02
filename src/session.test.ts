@@ -529,7 +529,7 @@ describe("Session.send modes", () => {
     });
 
     session.send("Hi");
-    expect(session.waitForIdle()).rejects.toThrow();
+    await expect(session.waitForIdle()).rejects.toThrow();
   });
 
   test("createSession with options object", async () => {

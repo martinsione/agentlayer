@@ -37,13 +37,13 @@ describe("BashTool", () => {
   });
 
   test("throws on non-zero exit code", async () => {
-    expect(BashTool.execute({ command: "exit 42" }, ctx)).rejects.toThrow(
+    await expect(BashTool.execute({ command: "exit 42" }, ctx)).rejects.toThrow(
       "Command exited with code 42",
     );
   });
 
   test("throws on timeout", async () => {
-    expect(BashTool.execute({ command: "sleep 10", timeout: 1 }, ctx)).rejects.toThrow(
+    await expect(BashTool.execute({ command: "sleep 10", timeout: 1 }, ctx)).rejects.toThrow(
       "Command timed out after 1 seconds",
     );
   });

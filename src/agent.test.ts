@@ -46,7 +46,7 @@ describe("Agent", () => {
 
   test("resumeSession throws if session doesn't exist", async () => {
     const { agent } = createTestAgent([{ text: "Hi" }]);
-    expect(agent.resumeSession("nonexistent")).rejects.toThrow("Session not found: nonexistent");
+    await expect(agent.resumeSession("nonexistent")).rejects.toThrow("Session not found: nonexistent");
   });
 
   test("createSession passes sendMode to session", async () => {
@@ -231,7 +231,7 @@ describe("Agent with JsonlSessionStore", () => {
   test("resumeSession throws for nonexistent JSONL session", async () => {
     const store = new JsonlSessionStore(dir);
     const { agent } = createTestAgent([{ text: "Hi" }], { store });
-    expect(agent.resumeSession("nonexistent")).rejects.toThrow("Session not found: nonexistent");
+    await expect(agent.resumeSession("nonexistent")).rejects.toThrow("Session not found: nonexistent");
   });
 
   test("resumeSession throws for nonexistent leafId", async () => {
@@ -242,7 +242,7 @@ describe("Agent with JsonlSessionStore", () => {
     session.send("Hello");
     await session.waitForIdle();
 
-    expect(agent.resumeSession("s1", { leafId: "bad-id" })).rejects.toThrow(
+    await expect(agent.resumeSession("s1", { leafId: "bad-id" })).rejects.toThrow(
       "Entry not found: bad-id",
     );
   });

@@ -3,6 +3,7 @@ import type { LoopConfig } from "./loop";
 import { NodeRuntime } from "./runtime/node";
 import { Session } from "./session";
 import { InMemorySessionStore } from "./store/memory";
+import { createTaskTool } from "./tools/task";
 import type {
   AgentHooks,
   AgentOptions,
@@ -26,7 +27,7 @@ export class Agent {
     this.hooks = config.hooks;
     this.onEvent = config.onEvent;
     const systemPrompt = config.instructions ?? config.systemPrompt;
-    const { hooks: _, instructions: __, onEvent: ___, ...rest } = config;
+    const { hooks: _, instructions: __, onEvent: ___, subagents: ____, ...rest } = config;
     this.config = {
       ...rest,
       systemPrompt,
@@ -36,6 +37,20 @@ export class Agent {
       store: config.store ?? new InMemorySessionStore(),
       maxSteps: config.maxSteps ?? DEFAULT_MAX_STEPS,
     };
+
+    if (config.subagents) {
+      const subagentTools = Object.entries(config.subagents).map(([name, sub]) =>
+        createTaskTool({
+          name: `task_${name}`,
+          description: sub.description,
+          model: sub.model ?? this.config.model,
+          tools: sub.tools ?? this.config.tools,
+          systemPrompt: sub.instructions,
+          maxSteps: sub.maxSteps ?? 50,
+        }),
+      );
+      this.config.tools = [...this.config.tools, ...subagentTools];
+    }
   }
 
   async createSession(opts?: SessionOptions & { id?: string }): Promise<Session> {

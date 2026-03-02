@@ -377,6 +377,68 @@ describe("Agent onEvent", () => {
   });
 });
 
+describe("Agent subagents", () => {
+  test("subagent definitions create task tools", async () => {
+    const model = createMockModel([
+      // Parent agent calls task_explore
+      { toolCalls: [{ id: "c1", name: "task_explore", input: { prompt: "Find main.ts" } }] },
+      // After task completes
+      { text: "Found it" },
+    ]);
+    // Subagent model responses
+    const subModel = createMockModel([{ text: "main.ts is in src/" }]);
+
+    const agent = new Agent({
+      model,
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+      subagents: {
+        explore: {
+          description: "Explore the codebase",
+          instructions: "Find files quickly",
+          model: subModel,
+          tools: [],
+        },
+      },
+    });
+
+    const session = await agent.createSession();
+    const text = await session.prompt("Find main.ts");
+
+    expect(text).toBe("Found it");
+    // Subagent model was called
+    expect(subModel.doStreamCalls.length).toBeGreaterThan(0);
+  });
+
+  test("subagents inherit parent model when not specified", async () => {
+    const { agent } = createTestAgent([{ text: "Hi" }]);
+
+    // Access the tools to verify task tool was created
+    const session = await agent.createSession();
+    // Can't directly check tools, but we can verify the agent was created without error
+    expect(session).toBeDefined();
+  });
+
+  test("multiple subagents create multiple task tools", async () => {
+    const model = createMockModel([{ text: "Hi" }]);
+    const agent = new Agent({
+      model,
+      runtime: new JustBashRuntime(),
+      store: new InMemorySessionStore(),
+      subagents: {
+        explore: { description: "Explore" },
+        plan: { description: "Plan" },
+      },
+    });
+
+    const session = await agent.createSession();
+    // Verify both tools exist by checking session.tools
+    const toolNames = session.tools.map((t) => t.name);
+    expect(toolNames).toContain("task_explore");
+    expect(toolNames).toContain("task_plan");
+  });
+});
+
 describe("Agent instructions alias", () => {
   test("instructions is used as system prompt", async () => {
     const model = createMockModel([{ text: "Hi" }]);

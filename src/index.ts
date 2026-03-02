@@ -17,6 +17,7 @@ export type {
   ToolContext,
   SessionStore,
   AgentOptions,
+  SubagentConfig,
   CompactionConfig,
   SessionOptions,
   SendMode,

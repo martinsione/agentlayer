@@ -273,6 +273,20 @@ export type CompactionConfig = {
   keepLast?: number;
 };
 
+/** Configuration for a named subagent. */
+export type SubagentConfig = {
+  /** Description shown to the LLM for when to use this subagent. */
+  description: string;
+  /** System prompt / instructions for the subagent. */
+  instructions?: string;
+  /** Tools available to the subagent. If omitted, inherits parent tools. */
+  tools?: Tool[];
+  /** Model override. If omitted, inherits parent model. */
+  model?: LanguageModel;
+  /** Max steps for the subagent loop (default: 50). */
+  maxSteps?: number;
+};
+
 // Options
 export type SessionOptions = { sendMode?: SendMode };
 export type AgentOptions = {
@@ -301,4 +315,6 @@ export type AgentOptions = {
   onEvent?: (event: SessionEvent) => void | Promise<void>;
   /** Auto-compaction configuration. When provided, session.compact() can be called. */
   compaction?: CompactionConfig;
+  /** Named subagent definitions. Each key becomes a `task_<name>` tool. */
+  subagents?: Record<string, SubagentConfig>;
 };

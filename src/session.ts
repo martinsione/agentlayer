@@ -152,7 +152,7 @@ export class Session {
     return this.completion ? "busy" : "idle";
   }
 
-  get usage(): SessionUsage & { totalTokens: number } {
+  get usage(): SessionUsage {
     return {
       ...this._usage,
       totalTokens: this._usage.inputTokens + this._usage.outputTokens,

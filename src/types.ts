@@ -260,7 +260,7 @@ export type LoopEvent =
 export type PromptResult = {
   text: string;
   messages: readonly ModelMessage[];
-  usage: SessionUsage & { totalTokens: number };
+  usage: SessionUsage;
 };
 
 // Send mode

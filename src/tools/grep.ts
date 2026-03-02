@@ -11,6 +11,9 @@ import { defineTool } from "../define-tool";
 import type { Tool } from "../types";
 import { DEFAULT_MAX_BYTES } from "./truncate";
 
+/** Escape single quotes for safe shell interpolation inside single-quoted strings. */
+const sq = (s: string) => s.replaceAll("'", "'\\''");
+
 const schema = z.object({
   pattern: z.string().describe("Regex pattern to search for"),
   path: z
@@ -30,10 +33,6 @@ export function createGrepTool(cwd?: string): Tool {
     execute: async (input, ctx) => {
       const baseCwd = cwd ?? ctx.runtime.cwd;
       const searchPath = input.path ? resolve(baseCwd, input.path) : baseCwd;
-
-      // Escape single quotes for safe shell interpolation inside single-quoted strings.
-      // Each ' is replaced with '\'' (end quote, escaped quote, start quote).
-      const sq = (s: string) => s.replaceAll("'", "'\\''");
 
       // Build the grep command
       const args: string[] = ["-rn"];

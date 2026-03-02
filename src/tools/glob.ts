@@ -1,17 +1,19 @@
 /**
  * Glob tool — find files matching a glob pattern.
  *
- * Uses Node's `node:fs/promises` glob (available in Node 22+).
- * Returns one file path per line, limited to 500 results.
+ * Delegates to the shell via `ctx.runtime.exec()` so it works on any runtime
+ * (Node, Vercel Sandbox, etc.).  Returns one file path per line, limited to
+ * 500 results.
  */
 
-import { glob } from "node:fs/promises";
-import { resolve } from "node:path";
 import { z } from "zod/v4";
 import { defineTool } from "../define-tool";
 import type { Tool } from "../types";
 
 const MAX_RESULTS = 500;
+
+/** Escape single quotes for safe shell interpolation inside single-quoted strings. */
+const sq = (s: string) => s.replaceAll("'", "'\\''");
 
 const schema = z.object({
   pattern: z.string().describe("Glob pattern (e.g. **/*.ts)"),
@@ -26,23 +28,50 @@ export function createGlobTool(cwd?: string): Tool {
     schema,
     execute: async (input, ctx) => {
       const baseCwd = cwd ?? ctx.runtime.cwd;
-      const searchDir = input.cwd ? resolve(baseCwd, input.cwd) : baseCwd;
-      const results: string[] = [];
+      const searchDir = input.cwd ? `${baseCwd}/${input.cwd}` : baseCwd;
 
-      for await (const entry of glob(input.pattern, { cwd: searchDir })) {
-        results.push(entry);
-        if (results.length >= MAX_RESULTS) break;
+      // Use find via the runtime so this works on any runtime (Node, sandbox, etc.).
+      // Convert the glob pattern into a find -path expression:
+      //   **/*.ts  → -name '*.ts'   (recursive by default)
+      //   *.json   → -maxdepth 1 -name '*.json'   (no ** → single directory)
+      const pattern = input.pattern;
+      const hasRecursive = pattern.includes("**");
+
+      // Extract the filename portion (last segment after the last /)
+      const lastSlash = pattern.lastIndexOf("/");
+      const namePattern = lastSlash >= 0 ? pattern.slice(lastSlash + 1) : pattern;
+
+      // Extract the subdirectory prefix (everything before **)
+      let subDir = ".";
+      if (lastSlash >= 0) {
+        const dirPart = pattern.slice(0, lastSlash);
+        // Strip leading **/ or trailing /** from the directory part
+        const cleaned = dirPart.replace(/^\*\*\/?/, "").replace(/\/?\*\*$/, "");
+        if (cleaned && !cleaned.includes("*")) subDir = cleaned;
       }
 
-      if (results.length === 0) {
+      const args: string[] = ["find", `'${sq(subDir)}'`];
+      if (!hasRecursive) args.push("-maxdepth", "1");
+      args.push("-type", "f", "-name", `'${sq(namePattern)}'`);
+      args.push("|", "head", "-n", String(MAX_RESULTS + 1));
+
+      const result = await ctx.runtime.exec(args.join(" "), {
+        cwd: searchDir,
+        signal: ctx.signal,
+      });
+
+      const lines = result.stdout.split("\n").filter(Boolean);
+
+      // Strip the leading ./ that find prepends
+      const cleaned = lines.map((l) => (l.startsWith("./") ? l.slice(2) : l));
+
+      if (cleaned.length === 0) {
         return "No files matched the pattern.";
       }
 
-      let output = results.join("\n");
-      if (results.length >= MAX_RESULTS) {
-        output += `\n\n[Results limited to ${MAX_RESULTS} entries]`;
-      }
-      return output;
+      const limited = cleaned.length > MAX_RESULTS;
+      const output = cleaned.slice(0, MAX_RESULTS).join("\n");
+      return limited ? output + `\n\n[Results limited to ${MAX_RESULTS} entries]` : output;
     },
   });
 }

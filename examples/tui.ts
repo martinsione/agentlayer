@@ -40,7 +40,8 @@ const syntaxStyle = SyntaxStyle.fromTheme([
 // -- Agent --
 
 const agent = new Agent({
-  model: "moonshotai/kimi-k2.5",
+  // model: "moonshotai/kimi-k2.5",
+  model: "openai/gpt-oss-120b",
   instructions: [
     "You are a coding assistant running in a terminal.",
     "Use tools to answer questions. Be concise.",
@@ -91,13 +92,29 @@ const input = new InputRenderable(renderer, {
   placeholderColor: muted,
   textColor: text,
   cursorColor: text,
-  cursorStyle: { style: "line" },
+  cursorStyle: { style: "block" },
   width: "100%",
+});
+
+const queueBox = new BoxRenderable(renderer, {
+  id: "queue-box",
+  flexDirection: "column",
+  visible: false,
+  flexShrink: 0,
+  paddingLeft: 1,
+});
+
+const modeIndicator = new TextRenderable(renderer, {
+  id: "mode-indicator",
+  content: t`${fg(muted)("steer mode (shift+tab to cycle)")}`,
+  flexShrink: 0,
 });
 
 inputBox.add(input);
 root.add(scroll);
+root.add(queueBox);
 root.add(inputBox);
+root.add(modeIndicator);
 renderer.root.add(root);
 
 // -- Session --
@@ -105,6 +122,8 @@ renderer.root.add(root);
 const session = await agent.createSession();
 let md: MarkdownRenderable | null = null;
 let buf = "";
+let currentMode: "steer" | "queue" = "steer";
+const queuedMessages: { id: string; text: string }[] = [];
 
 session.on("status", (e) => {
   inputBox.borderColor = e.status === "busy" ? "#555" : "#282828";
@@ -154,17 +173,63 @@ session.on("error", (e) => {
 
 // -- Input --
 
+input.onKeyDown = (key) => {
+  if (key.name === "tab" && key.shift) {
+    key.preventDefault();
+    currentMode = currentMode === "steer" ? "queue" : "steer";
+    modeIndicator.content = t`${fg(muted)(`${currentMode} mode (shift+tab to cycle)`)}`;
+  }
+};
+
 input.on(InputRenderableEvents.ENTER, (value: string) => {
   if (!value.trim()) return;
   input.value = "";
+
+  if (currentMode === "steer") {
+    scroll.add(
+      new TextRenderable(renderer, {
+        id: `u-${crypto.randomUUID()}`,
+        content: t`${bold(fg(text)(`> ${value}`))}`,
+        marginTop: 1,
+      }),
+    );
+    session.send(value);
+  } else {
+    const id = `q-${crypto.randomUUID()}`;
+    queuedMessages.push({ id, text: value });
+    queueBox.visible = true;
+    queueBox.add(
+      new TextRenderable(renderer, {
+        id,
+        content: t`${fg(muted)(`[queued] ${value}`)}`,
+      }),
+    );
+    session.send(value, { mode: "queue" });
+  }
+});
+
+session.on("message", (e) => {
+  if (e.message.role !== "user") return;
+  const { content } = e.message;
+  const msgText =
+    typeof content === "string"
+      ? content
+      : content
+          .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
+          .map((p) => p.text)
+          .join("");
+  const idx = queuedMessages.findIndex((q) => q.text === msgText);
+  if (idx === -1) return;
+  const entry = queuedMessages.splice(idx, 1)[0]!;
+  queueBox.remove(entry.id);
+  if (queuedMessages.length === 0) queueBox.visible = false;
   scroll.add(
     new TextRenderable(renderer, {
       id: `u-${crypto.randomUUID()}`,
-      content: t`${bold(fg(text)(`> ${value}`))}`,
+      content: t`${bold(fg(text)(`> ${msgText}`))}`,
       marginTop: 1,
     }),
   );
-  session.send(value);
 });
 
 input.focus();

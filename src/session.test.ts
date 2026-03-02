@@ -157,18 +157,8 @@ describe("Session.send", () => {
       errors.push(e.error);
     });
 
-    const orig = console.error;
-    console.error = () => {};
-    let threw = false;
-    try {
-      session.send("Hi");
-      await session.waitForIdle();
-    } catch {
-      threw = true;
-    } finally {
-      console.error = orig;
-    }
-    expect(threw).toBe(true);
+    session.send("Hi");
+    await expect(session.waitForIdle()).rejects.toThrow();
     expect(errors).toHaveLength(1);
   });
 
@@ -522,21 +512,8 @@ describe("Session.send modes", () => {
     });
     const session = await agent.createSession();
 
-    const orig = console.error;
-    console.error = () => {};
-
-    try {
-      let threw1 = false;
-      try {
-        session.send("Hi");
-        await session.waitForIdle();
-      } catch {
-        threw1 = true;
-      }
-      expect(threw1).toBe(true);
-    } finally {
-      console.error = orig;
-    }
+    session.send("Hi");
+    await expect(session.waitForIdle()).rejects.toThrow();
   });
 
   test("throwing error listener does not hang waitForIdle", async () => {
@@ -601,20 +578,11 @@ describe("Session.send modes", () => {
     });
     const session = await agent.createSession();
 
-    const orig = console.error;
-    console.error = () => {};
-
     // First send fails — also queue a steer message while it's "running"
     session.send("First");
     session.send("Stale steer", { mode: "steer" });
 
-    let errored = false;
-    try {
-      await session.waitForIdle();
-    } catch {
-      errored = true;
-    }
-    expect(errored).toBe(true);
+    await expect(session.waitForIdle()).rejects.toThrow();
 
     // Now send again — should start a fresh loop, not replay stale messages
     const deltas: string[] = [];
@@ -624,7 +592,6 @@ describe("Session.send modes", () => {
 
     session.send("Retry");
     await session.waitForIdle();
-    console.error = orig;
 
     expect(deltas).toEqual(["recovered"]);
   });
@@ -719,13 +686,8 @@ describe("Session.status", () => {
       statuses.push(e.status);
     });
 
-    const orig = console.error;
-    console.error = () => {};
-    try {
-      session.send("Hi");
-      await session.waitForIdle();
-    } catch {}
-    console.error = orig;
+    session.send("Hi");
+    await expect(session.waitForIdle()).rejects.toThrow();
 
     expect(statuses).toEqual(["busy", "idle"]);
   });

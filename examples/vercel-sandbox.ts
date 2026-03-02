@@ -10,7 +10,6 @@ import { Sandbox } from "@vercel/sandbox";
 import { Agent } from "agentlayer";
 import { VercelSandboxRuntime } from "agentlayer/runtime/sandbox";
 import { BashTool } from "agentlayer/tools/bash";
-import { attachLogger } from "./_log";
 
 async function getOrCreateSandbox() {
   const lockFilePath = path.join(
@@ -45,12 +44,14 @@ const agent = new Agent({
   instructions: "You are a helpful assistant. Use tools when needed. Be concise.",
   runtime: new VercelSandboxRuntime({ sandbox }),
   tools: [BashTool],
+  onEvent: (e) => {
+    if (e.type === "text-delta") process.stdout.write(e.text);
+    if (e.type === "before-tool-call")
+      console.log(`\n> ${e.toolLabel ?? e.toolName}(${JSON.stringify(e.input)})`);
+    if (e.type === "tool-result") console.log(`[ok] ${String(e.output).slice(0, 120)}`);
+    if (e.type === "tool-error") console.log(`[error] ${String(e.error).slice(0, 120)}`);
+  },
 });
 
-const session = await agent.createSession();
-
-attachLogger(session);
-
-session.send("What OS and Node.js version are in this sandbox? Use uname -a && node -v.");
-await session.waitForIdle();
+await agent.prompt("What OS and Node.js version are in this sandbox? Use uname -a && node -v.");
 console.log("\n");

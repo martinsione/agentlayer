@@ -11,22 +11,21 @@ import { Agent } from "agentlayer";
 import { JustBashRuntime } from "agentlayer/runtime/just-bash";
 import { BashTool } from "agentlayer/tools/bash";
 import { WebFetchTool } from "agentlayer/tools/web-fetch";
-import { attachLogger } from "./_log";
 
 const agent = new Agent({
   model: "moonshotai/kimi-k2.5",
   instructions: "You are a helpful assistant. Use tools when needed. Be concise.",
   runtime: new JustBashRuntime(),
   tools: [BashTool, WebFetchTool],
+  onEvent: (e) => {
+    if (e.type === "text-delta") process.stdout.write(e.text);
+    if (e.type === "before-tool-call")
+      console.log(`\n> ${e.toolLabel ?? e.toolName}(${JSON.stringify(e.input)})`);
+    if (e.type === "tool-result") console.log(`[ok] ${String(e.output).slice(0, 120)}`);
+    if (e.type === "tool-error") console.log(`[error] ${String(e.error).slice(0, 120)}`);
+  },
 });
 
-const session = await agent.createSession();
-
-attachLogger(session);
-
-session.send("What OS is this? Use uname -a.");
-await session.waitForIdle();
-
-session.send("What is your working directory?");
-await session.waitForIdle();
+await agent.prompt("What OS is this? Use uname -a.");
+await agent.prompt("What is your working directory?");
 console.log();

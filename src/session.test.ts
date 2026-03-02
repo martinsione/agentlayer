@@ -328,9 +328,9 @@ describe("Session.send", () => {
     const { agent } = createTestAgent([{ text: "Hello" }]);
     const session = await agent.createSession();
 
-    const beforeModelCalls: { system: string | undefined }[] = [];
+    const beforeModelCalls: { instructions: string | undefined }[] = [];
     session.on("before-model-call", (e) => {
-      beforeModelCalls.push({ system: e.system });
+      beforeModelCalls.push({ instructions: e.instructions });
     });
 
     session.send("Hi");

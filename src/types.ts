@@ -133,12 +133,12 @@ export type AfterToolCallEvent = {
 export type AfterToolCallDecision = void | undefined | { result: string };
 
 export type BeforeModelCallEvent = {
-  system: string | undefined;
+  instructions: string | undefined;
   tools: readonly Tool[];
   messages: readonly ModelMessage[];
 };
 
-export type BeforeModelCallDecision = void | undefined | { system?: string; tools?: Tool[] };
+export type BeforeModelCallDecision = void | undefined | { instructions?: string; tools?: Tool[] };
 
 export type BeforeStopEvent = {
   messages: readonly ModelMessage[];

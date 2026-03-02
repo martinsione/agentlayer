@@ -298,7 +298,7 @@ describe("loop", () => {
       maxSteps: 10,
       instructions: "original system",
       hooks: {
-        beforeModelCall: async () => ({ system: "modified system" }),
+        beforeModelCall: async () => ({ instructions: "modified system" }),
       },
     });
 

@@ -230,9 +230,10 @@ export async function* loop(
     let currentToolDefs = toolDefs;
 
     if (hooks?.beforeModelCall) {
-      const decision = await hooks.beforeModelCall({ system, tools, messages: msgs });
+      const decision = await hooks.beforeModelCall({ instructions: system, tools, messages: msgs });
       if (decision && typeof decision === "object") {
-        if ("system" in decision && decision.system !== undefined) system = decision.system;
+        if ("instructions" in decision && decision.instructions !== undefined)
+          system = decision.instructions;
         if ("tools" in decision && decision.tools !== undefined) {
           currentToolDefs = buildToolDefs({ ...baseToolOpts, tools: decision.tools });
         }

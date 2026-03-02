@@ -420,8 +420,8 @@ export class Session {
               lastText = getMessageText(payload.message);
 
               if ("usage" in payload) {
-                this._usage.inputTokens += payload.usage.input;
-                this._usage.outputTokens += payload.usage.output;
+                this._usage.inputTokens += payload.usage.inputTokens;
+                this._usage.outputTokens += payload.usage.outputTokens;
               }
             }
 

@@ -80,6 +80,10 @@
     "./tools/grep": {
       "types": "./dist/tools/grep.d.ts",
       "default": "./dist/tools/grep.js"
+    },
+    "./tools/edit": {
+      "types": "./dist/tools/edit.d.ts",
+      "default": "./dist/tools/edit.js"
     }
   },
   "scripts": {

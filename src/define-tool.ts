@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import type { Tool, ToolContext, ToolExecuteReturn, ToolResult } from "./types";
+import type { Tool, ToolContext, ToolExecuteReturn } from "./types";
 
 type ZodObjectSchema = z.ZodObject<z.core.$ZodLooseShape>;
 

@@ -80,6 +80,11 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
       inputSchema: jsonSchema(t.parameters),
       execute: async (input, options) => {
         let resolvedInput = input as Record<string, unknown>;
+        const toolId = {
+          toolCallId: options.toolCallId,
+          toolName: t.name,
+          toolLabel: t.label,
+        };
 
         if (hooks?.beforeToolCall) {
           const approval =
@@ -87,9 +92,7 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
               ? t.needsApproval(resolvedInput)
               : !!t.needsApproval;
           const decision = await hooks.beforeToolCall({
-            toolCallId: options.toolCallId,
-            toolName: t.name,
-            toolLabel: t.label,
+            ...toolId,
             input: resolvedInput,
             needsApproval: approval,
           });
@@ -98,13 +101,7 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
         }
 
         const onProgress = onToolProgress
-          ? (text: string) =>
-              onToolProgress({
-                toolCallId: options.toolCallId,
-                toolName: t.name,
-                toolLabel: t.label,
-                text,
-              })
+          ? (text: string) => onToolProgress({ ...toolId, text })
           : undefined;
 
         let result: string;
@@ -142,9 +139,7 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
         } catch (err) {
           if (hooks?.afterToolCall) {
             await hooks.afterToolCall({
-              toolCallId: options.toolCallId,
-              toolName: t.name,
-              toolLabel: t.label,
+              ...toolId,
               input: resolvedInput,
               error: err instanceof Error ? err : new Error(String(err)),
             });
@@ -154,9 +149,7 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
 
         if (hooks?.afterToolCall) {
           const decision = await hooks.afterToolCall({
-            toolCallId: options.toolCallId,
-            toolName: t.name,
-            toolLabel: t.label,
+            ...toolId,
             input: resolvedInput,
             result,
             metadata,

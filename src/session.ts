@@ -235,7 +235,7 @@ export class Session {
     } finally {
       unsub?.();
     }
-    return getLastAssistantText(this._messages);
+    return this.text;
   }
 
   abort(): void {

@@ -8,7 +8,7 @@
 import type { LanguageModel } from "ai";
 import { z } from "zod/v4";
 import { loop } from "../loop";
-import type { ModelMessage, Tool, ToolContext, ToolExecuteReturn } from "../types";
+import type { ModelMessage, Tool, ToolContext } from "../types";
 import { getLastAssistantText } from "../utils";
 
 const taskSchema = z.object({

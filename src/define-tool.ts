@@ -36,6 +36,9 @@ export function defineTool<TSchema extends ZodObjectSchema>(opts: {
     name: opts.name,
     description: opts.description,
     parameters: z.toJSONSchema(opts.schema, { target: "draft-7" }) as Record<string, unknown>,
-    execute: opts.execute as Tool["execute"],
+    execute: (input: Record<string, unknown>, ctx: ToolContext) => {
+      const parsed = opts.schema.parse(input);
+      return opts.execute(parsed, ctx);
+    },
   };
 }

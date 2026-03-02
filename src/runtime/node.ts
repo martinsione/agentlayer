@@ -125,7 +125,7 @@ export class NodeRuntime implements Runtime {
       let stderrCapped = false;
 
       const killIfFullyCapped = () => {
-        if (stdoutCapped && stderrCapped) child.kill();
+        if (stdoutCapped && stderrCapped && child.pid) killProcessTree(child.pid);
       };
 
       const onData = opts?.onData;

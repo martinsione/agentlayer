@@ -53,4 +53,16 @@ describe("GrepTool", () => {
     const result = (await tool.execute({ pattern: "nonexistent_string_xyz" }, ctx)) as string;
     expect(result).toBe("No matches found.");
   });
+
+  test("handles single quotes in pattern without shell injection", async () => {
+    // A pattern containing single quotes should be safely escaped, not cause injection
+    const result = (await tool.execute({ pattern: "it's" }, ctx)) as string;
+    // Should simply find no matches (our test files don't contain "it's")
+    expect(result).toBe("No matches found.");
+  });
+
+  test("handles single quotes in glob without shell injection", async () => {
+    const result = (await tool.execute({ pattern: "hello", glob: "*.t's" }, ctx)) as string;
+    expect(result).toBe("No matches found.");
+  });
 });

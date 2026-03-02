@@ -31,13 +31,17 @@ export function createGrepTool(cwd?: string): Tool {
       const baseCwd = cwd ?? ctx.runtime.cwd;
       const searchPath = input.path ? resolve(baseCwd, input.path) : baseCwd;
 
+      // Escape single quotes for safe shell interpolation inside single-quoted strings.
+      // Each ' is replaced with '\'' (end quote, escaped quote, start quote).
+      const sq = (s: string) => s.replaceAll("'", "'\\''");
+
       // Build the grep command
       const args: string[] = ["-rn"];
       if (input.glob) {
-        args.push("--include", `'${input.glob}'`);
+        args.push("--include", `'${sq(input.glob)}'`);
       }
       // Use -- to separate pattern from path to avoid issues with patterns starting with -
-      args.push("--", `'${input.pattern}'`, `'${searchPath}'`);
+      args.push("--", `'${sq(input.pattern)}'`, `'${sq(searchPath)}'`);
 
       const command = `grep ${args.join(" ")}`;
 

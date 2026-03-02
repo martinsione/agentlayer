@@ -1,5 +1,5 @@
 import { mkdir, appendFile, readFile, readdir, access } from "node:fs/promises";
-import { join, dirname, resolve } from "node:path";
+import { join, dirname, resolve, sep } from "node:path";
 import type { SessionEntry, SessionStore } from "../types";
 
 export class JsonlSessionStore implements SessionStore {
@@ -16,7 +16,7 @@ export class JsonlSessionStore implements SessionStore {
     const resolved = resolve(this.dir, `${sessionId}.jsonl`);
     // Ensure the resolved path stays within the configured directory.
     // Use dir + sep to avoid prefix false-positives (e.g. dir "foo" matching "foobar/x").
-    if (!resolved.startsWith(this.dir + "/")) {
+    if (!resolved.startsWith(this.dir + sep)) {
       throw new Error(`Invalid sessionId: path escapes store directory`);
     }
     return resolved;

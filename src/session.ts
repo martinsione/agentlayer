@@ -332,6 +332,7 @@ export class Session {
       this._messages,
       {
         ...this.config,
+        sessionId: this.id,
         hooks: {
           beforeToolCall: (e) => this.runHook("before-tool-call", e),
           afterToolCall: (e) => this.runHook("after-tool-call", e),

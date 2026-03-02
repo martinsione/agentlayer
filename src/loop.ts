@@ -44,6 +44,7 @@ export type LoopConfig = {
   thinkingBudgets?: ThinkingBudgets;
   providerOptions?: Record<string, unknown>;
   transformContext?: (messages: ModelMessage[]) => ModelMessage[] | Promise<ModelMessage[]>;
+  sessionId?: string;
 };
 
 const DEFAULT_THINKING_BUDGETS: Required<ThinkingBudgets> = {
@@ -66,6 +67,8 @@ function buildToolDefs(
   runtime: Runtime,
   hooks?: LoopHooks,
   onToolProgress?: LoopConfig["onToolProgress"],
+  sessionId?: string,
+  messages?: readonly ModelMessage[],
 ): Record<string, unknown> {
   const toolDefs: Record<string, unknown> = {};
   for (const t of tools) {
@@ -101,6 +104,8 @@ function buildToolDefs(
             runtime,
             signal: options.abortSignal,
             onProgress,
+            sessionId: sessionId ?? "",
+            messages: messages ?? [],
           });
 
           let raw: string | ToolResult;
@@ -166,12 +171,13 @@ export async function* loop(
     thinkingBudgets,
     providerOptions,
     transformContext,
+    sessionId,
   } = config;
 
   // Clone so we never mutate the caller's array
   const msgs = [...messages];
 
-  const toolDefs = buildToolDefs(tools, runtime, hooks, config.onToolProgress);
+  const toolDefs = buildToolDefs(tools, runtime, hooks, config.onToolProgress, sessionId, msgs);
 
   const budget = getThinkingBudget(thinkingLevel, thinkingBudgets);
   const resolvedProviderOptions =
@@ -209,7 +215,14 @@ export async function* loop(
       if (decision && typeof decision === "object") {
         if ("system" in decision && decision.system !== undefined) system = decision.system;
         if ("tools" in decision && decision.tools !== undefined) {
-          currentToolDefs = buildToolDefs(decision.tools, runtime, hooks, config.onToolProgress);
+          currentToolDefs = buildToolDefs(
+            decision.tools,
+            runtime,
+            hooks,
+            config.onToolProgress,
+            sessionId,
+            msgs,
+          );
         }
       }
     }

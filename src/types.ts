@@ -30,6 +30,10 @@ export type ToolContext = {
   runtime: Runtime;
   signal?: AbortSignal;
   onProgress?: (text: string) => void;
+  /** The session ID this tool is executing in (set when running inside a session). */
+  sessionId?: string;
+  /** The current message history (set when running inside a session). */
+  messages?: readonly ModelMessage[];
 };
 
 /**

@@ -1402,3 +1402,30 @@ describe("Session.subscribe", () => {
     expect(wildcardDeltas).toEqual(["Hello"]);
   });
 });
+
+describe("Session tool context enrichment", () => {
+  test("tools receive sessionId and messages in context", async () => {
+    let receivedCtx: { sessionId?: string; messages?: readonly ModelMessage[] } | undefined;
+    const spyTool: Tool = {
+      name: "spy",
+      description: "captures context",
+      parameters: { type: "object", properties: {} },
+      execute: async (_input, ctx) => {
+        receivedCtx = { sessionId: ctx.sessionId, messages: ctx.messages };
+        return "ok";
+      },
+    };
+
+    const { agent } = createTestAgent(
+      [{ toolCalls: [{ id: "c1", name: "spy", input: {} }] }, { text: "Done" }],
+      { tools: [spyTool] },
+    );
+    const session = await agent.createSession({ id: "test-session" });
+    session.send("Go");
+    await session.waitForIdle();
+
+    expect(receivedCtx).toBeDefined();
+    expect(receivedCtx!.sessionId).toBe("test-session");
+    expect(receivedCtx!.messages!.length).toBeGreaterThan(0);
+  });
+});

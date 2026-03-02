@@ -162,7 +162,7 @@ export type MessageEvent =
   | { message: ModelMessage & { role: "user" } }
   | {
       message: ModelMessage & { role: "assistant" };
-      usage: { input: number; output: number };
+      usage: SessionUsage;
       finishReason: string;
     }
   | { message: ModelMessage & { role: "tool" } };
@@ -179,10 +179,7 @@ export type ToolProgressEvent = {
 };
 
 // Usage
-export type SessionUsage = {
-  inputTokens: number;
-  outputTokens: number;
-};
+export type SessionUsage = { inputTokens: number; outputTokens: number; totalTokens: number };
 
 // Status
 export type SessionStatus = "idle" | "busy";

@@ -5,6 +5,7 @@ import type { LanguageModel } from "ai";
 import { STREAM_EVENT_TYPES } from "./types";
 import type {
   LoopEvent,
+  SessionUsage,
   Tool,
   ToolResult,
   Runtime,
@@ -280,7 +281,11 @@ export async function* loop(
         yield {
           type: "message",
           message: msg as ModelMessage & { role: "assistant" },
-          usage: { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
+          usage: ((): SessionUsage => {
+            const inputTokens = usage.inputTokens ?? 0;
+            const outputTokens = usage.outputTokens ?? 0;
+            return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
+          })(),
           finishReason,
         };
       } else {

@@ -423,7 +423,7 @@ describe("loop", () => {
     const msg = events.find((e) => e.type === "message" && e.message.role === "assistant");
     expect(msg).toBeDefined();
     if (msg?.type === "message" && "usage" in msg) {
-      expect(msg.usage).toEqual({ input: 10, output: 5 });
+      expect(msg.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
     }
   });
 

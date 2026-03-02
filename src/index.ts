@@ -1,6 +1,6 @@
 export { Agent } from "./agent";
 export { defineTool } from "./define-tool";
-export { RuntimeAbortError, RuntimeTimeoutError } from "./errors";
+export { RuntimeAbortError, RuntimeTimeoutError, isAbortError, isTimeoutError } from "./errors";
 export { Session, buildContext } from "./session";
 export { loop } from "./loop";
 export { getMessageText, getLastAssistantText } from "./utils";

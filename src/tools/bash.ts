@@ -10,7 +10,7 @@ import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod/v4";
-import { RuntimeAbortError, RuntimeTimeoutError } from "../errors";
+import { RuntimeTimeoutError, isAbortError, isTimeoutError } from "../errors";
 import type { Tool, ToolContext } from "../types";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateTail } from "./truncate";
 
@@ -33,18 +33,6 @@ export interface BashToolOptions {
 // ---------------------------------------------------------------------------
 // Error classification helpers
 // ---------------------------------------------------------------------------
-
-function isAbortError(err: Error): boolean {
-  if (err instanceof RuntimeAbortError) return true;
-  if (err.name === "AbortError") return true; // DOMException fallback
-  return false;
-}
-
-function isTimeoutError(err: Error): boolean {
-  if (err instanceof RuntimeTimeoutError) return true;
-  if (err.name === "TimeoutError") return true; // DOMException fallback
-  return false;
-}
 
 function extractTimeoutSecs(err: Error, inputTimeout?: number): string {
   if (err instanceof RuntimeTimeoutError) return String(err.timeoutSecs);

@@ -1,5 +1,5 @@
 import type { Sandbox } from "@vercel/sandbox";
-import { RuntimeAbortError, RuntimeTimeoutError } from "../errors";
+import { rethrowAsRuntimeError } from "../errors";
 import type { Runtime, ExecResult, ExecOptions } from "../types";
 
 export type SandboxRuntimeOptions = {
@@ -42,11 +42,7 @@ export class VercelSandboxRuntime implements Runtime {
 
       return { stdout, stderr, exitCode: result.exitCode };
     } catch (err) {
-      if (err instanceof Error) {
-        if (err.name === "TimeoutError") throw new RuntimeTimeoutError(opts?.timeout ?? 0);
-        if (err.name === "AbortError") throw new RuntimeAbortError();
-      }
-      throw err;
+      rethrowAsRuntimeError(err, opts?.timeout);
     }
   }
 

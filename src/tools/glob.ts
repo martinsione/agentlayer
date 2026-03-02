@@ -9,11 +9,9 @@
 import { z } from "zod/v4";
 import { defineTool } from "../define-tool";
 import type { Tool } from "../types";
+import { sq } from "./shell-utils";
 
 const MAX_RESULTS = 500;
-
-/** Escape single quotes for safe shell interpolation inside single-quoted strings. */
-const sq = (s: string) => s.replaceAll("'", "'\\''");
 
 const schema = z.object({
   pattern: z.string().describe("Glob pattern (e.g. **/*.ts)"),

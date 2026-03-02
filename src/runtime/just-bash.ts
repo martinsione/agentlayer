@@ -42,24 +42,20 @@ export class JustBashRuntime implements Runtime {
     } else {
       let abortListener: (() => void) | undefined;
       const abortPromise = new Promise<never>((_, reject) => {
+        const makeError = () =>
+          timeoutSecs != null && signal.reason?.name === "TimeoutError"
+            ? new RuntimeTimeoutError(timeoutSecs)
+            : new RuntimeAbortError();
         if (signal.aborted) {
-          reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
+          reject(makeError());
           return;
         }
-        abortListener = () => {
-          reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
-        };
+        abortListener = () => reject(makeError());
         signal.addEventListener("abort", abortListener, { once: true });
       });
 
       try {
         result = await Promise.race([execPromise, abortPromise]);
-      } catch (err) {
-        if (err instanceof Error) {
-          if (err.name === "TimeoutError") throw new RuntimeTimeoutError(timeoutSecs ?? 0);
-          if (err.name === "AbortError") throw new RuntimeAbortError();
-        }
-        throw err;
       } finally {
         if (abortListener) signal.removeEventListener("abort", abortListener);
       }

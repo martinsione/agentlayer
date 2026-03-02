@@ -45,8 +45,9 @@ export class JsonlSessionStore implements SessionStore {
     const path = this.filePath(sessionId);
 
     // Chain writes per session so concurrent appends never interleave bytes.
+    // Use .catch(() => {}) on prev so a prior failed write doesn't permanently break the chain.
     const prev = this.writeQueues.get(sessionId) ?? Promise.resolve();
-    const next = prev.then(async () => {
+    const next = prev.catch(() => {}).then(async () => {
       if (!this.dirEnsured) {
         await mkdir(dirname(path), { recursive: true });
         this.dirEnsured = true;
@@ -54,7 +55,14 @@ export class JsonlSessionStore implements SessionStore {
       await appendFile(path, JSON.stringify(entry) + "\n");
     });
     this.writeQueues.set(sessionId, next);
-    await next;
+    try {
+      await next;
+    } finally {
+      // Clean up resolved/rejected entry so the Map doesn't grow unboundedly
+      if (this.writeQueues.get(sessionId) === next) {
+        this.writeQueues.delete(sessionId);
+      }
+    }
   }
 
   async exists(sessionId: string): Promise<boolean> {

@@ -9,6 +9,7 @@ import { resolve } from "node:path";
 import { z } from "zod/v4";
 import { defineTool } from "../define-tool";
 import type { Tool } from "../types";
+import { truncateStringToBytesFromStart } from "./truncate";
 
 const MAX_BYTES = 100 * 1024; // 100KB
 
@@ -40,14 +41,3 @@ export function createReadTool(cwd?: string): Tool {
 
 /** Default read tool. Uses ctx.runtime.cwd at execution time. */
 export const ReadTool = createReadTool();
-
-/** Truncate a string to at most `maxBytes` UTF-8 bytes from the start, respecting character boundaries. */
-function truncateStringToBytesFromStart(str: string, maxBytes: number): string {
-  const buf = Buffer.from(str, "utf-8");
-  if (buf.length <= maxBytes) return str;
-  let end = maxBytes;
-  // Walk back to the start of a multi-byte character if we sliced mid-character.
-  // In UTF-8, continuation bytes have the pattern 10xxxxxx (0x80..0xBF).
-  while (end > 0 && (buf[end]! & 0xc0) === 0x80) end--;
-  return buf.subarray(0, end).toString("utf-8");
-}

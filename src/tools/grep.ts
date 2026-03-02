@@ -9,10 +9,8 @@ import { resolve } from "node:path";
 import { z } from "zod/v4";
 import { defineTool } from "../define-tool";
 import type { Tool } from "../types";
-import { DEFAULT_MAX_BYTES } from "./truncate";
-
-/** Escape single quotes for safe shell interpolation inside single-quoted strings. */
-const sq = (s: string) => s.replaceAll("'", "'\\''");
+import { DEFAULT_MAX_BYTES, truncateStringToBytesFromStart } from "./truncate";
+import { sq } from "./shell-utils";
 
 const schema = z.object({
   pattern: z.string().describe("Regex pattern to search for"),
@@ -53,9 +51,7 @@ export function createGrepTool(cwd?: string): Tool {
 
       const bytes = Buffer.byteLength(output, "utf-8");
       if (bytes > DEFAULT_MAX_BYTES) {
-        const truncated = Buffer.from(output, "utf-8")
-          .subarray(0, DEFAULT_MAX_BYTES)
-          .toString("utf-8");
+        const truncated = truncateStringToBytesFromStart(output, DEFAULT_MAX_BYTES);
         // Trim to last complete line
         const lastNewline = truncated.lastIndexOf("\n");
         const clean = lastNewline > 0 ? truncated.slice(0, lastNewline) : truncated;

@@ -108,6 +108,16 @@ export function truncateTail(content: string, options: TruncationOptions = {}): 
   };
 }
 
+/** Truncate a string to at most `maxBytes` UTF-8 bytes from the start, respecting character boundaries. */
+export function truncateStringToBytesFromStart(str: string, maxBytes: number): string {
+  const buf = Buffer.from(str, "utf-8");
+  if (buf.length <= maxBytes) return str;
+  let end = maxBytes;
+  // Walk back to the start of a multi-byte character if we sliced mid-character.
+  while (end > 0 && (buf[end]! & 0xc0) === 0x80) end--;
+  return buf.subarray(0, end).toString("utf-8");
+}
+
 function truncateStringToBytesFromEnd(str: string, maxBytes: number): string {
   const buf = Buffer.from(str, "utf-8");
   if (buf.length <= maxBytes) return str;

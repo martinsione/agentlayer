@@ -56,11 +56,17 @@ function findMatch(content: string, target: string): { index: number; length: nu
   );
 }
 
-function applyEdit(content: string, oldStr: string, newStr: string, replaceAll: boolean): string {
+function applyEdit(
+  content: string,
+  oldStr: string,
+  newStr: string,
+  replaceAll: boolean,
+): { result: string; count: number } {
   if (replaceAll) {
     // For replace_all, try exact first, fall back to line-by-line
     if (content.includes(oldStr)) {
-      return content.split(oldStr).join(newStr);
+      const count = content.split(oldStr).length - 1;
+      return { result: content.split(oldStr).join(newStr), count };
     }
     // Fuzzy replace_all: collect all match positions, then apply back-to-front
     const matches: { index: number; length: number }[] = [];
@@ -71,13 +77,13 @@ function applyEdit(content: string, oldStr: string, newStr: string, replaceAll: 
       matches.push({ index: searchFrom + match.index, length: match.length });
       searchFrom += match.index + match.length;
     }
-    if (matches.length === 0) return content;
+    if (matches.length === 0) return { result: content, count: 0 };
     let result = content;
     for (let i = matches.length - 1; i >= 0; i--) {
       const m = matches[i]!;
       result = result.slice(0, m.index) + newStr + result.slice(m.index + m.length);
     }
-    return result;
+    return { result, count: matches.length };
   }
 
   const match = findMatch(content, oldStr);
@@ -86,7 +92,10 @@ function applyEdit(content: string, oldStr: string, newStr: string, replaceAll: 
       "Could not find the specified text in the file. Make sure old_string matches exactly.",
     );
   }
-  return content.slice(0, match.index) + newStr + content.slice(match.index + match.length);
+  return {
+    result: content.slice(0, match.index) + newStr + content.slice(match.index + match.length),
+    count: 1,
+  };
 }
 
 export function createEditTool(cwd?: string): Tool {
@@ -106,7 +115,12 @@ export function createEditTool(cwd?: string): Tool {
       }
 
       const content = await ctx.runtime.readFile(filePath);
-      const updated = applyEdit(content, input.old_string, input.new_string, input.replace_all);
+      const { result: updated, count } = applyEdit(
+        content,
+        input.old_string,
+        input.new_string,
+        input.replace_all,
+      );
 
       if (content === updated) {
         return "No changes were made — the old_string was not found in the file.";
@@ -114,31 +128,7 @@ export function createEditTool(cwd?: string): Tool {
 
       await ctx.runtime.writeFile(filePath, updated);
 
-      // Count replacements by diffing before/after lengths
-      let replacementCount = 1;
-      if (input.replace_all) {
-        const oldLen = input.old_string.length;
-        const newLen = input.new_string.length;
-        if (oldLen !== newLen) {
-          replacementCount = (updated.length - content.length) / (newLen - oldLen);
-        } else {
-          // Lengths equal: count how many positions actually changed
-          let count = 0;
-          let searchFrom = 0;
-          while (searchFrom < updated.length) {
-            const idx = updated.indexOf(input.new_string, searchFrom);
-            if (idx === -1) break;
-            count++;
-            searchFrom = idx + input.new_string.length;
-          }
-          replacementCount = count;
-        }
-      }
-      const msg =
-        input.replace_all && replacementCount > 1
-          ? `Edited ${filePath} (${replacementCount} replacements)`
-          : `Edited ${filePath}`;
-      return msg;
+      return count > 1 ? `Edited ${filePath} (${count} replacements)` : `Edited ${filePath}`;
     },
   });
 }

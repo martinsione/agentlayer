@@ -45,7 +45,6 @@ export type ToolExecuteReturn =
   | Promise<string | ToolResult>
   | AsyncGenerator<string, string | ToolResult>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface Tool<TInput = any> {
   name: string;
   description: string;

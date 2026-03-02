@@ -16,14 +16,10 @@ import {
 } from "./test/helpers";
 import { BashTool } from "./tools/bash";
 import type {
-  MessageEvent,
   BeforeToolCallEvent,
   MessageEntry,
   CompactionEntry,
   SessionEntry,
-  StatusEvent,
-  StepStartEvent,
-  StepEndEvent,
   Tool,
 } from "./types";
 

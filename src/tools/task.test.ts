@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { loop } from "../loop";
 import { JustBashRuntime } from "../runtime/just-bash";
 import { createMockModel, drainLoop, userMessage } from "../test/helpers";
-import type { LoopEvent, ModelMessage, Tool } from "../types";
+import type { Tool } from "../types";
 import { createTaskTool } from "./task";
 
 describe("createTaskTool", () => {

@@ -8,8 +8,8 @@
 import type { LanguageModel } from "ai";
 import { z } from "zod/v4";
 import { loop } from "../loop";
-import { getMessageText } from "../types";
 import type { ModelMessage, Tool, ToolContext } from "../types";
+import { getMessageText } from "../utils";
 
 const taskSchema = z.object({
   prompt: z.string().describe("The task to perform"),

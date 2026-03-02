@@ -5,17 +5,6 @@ import type { LanguageModel, TextStreamPart } from "ai";
 export type { ModelMessage } from "@ai-sdk/provider-utils";
 export type { TextPart, ToolCallPart, ToolResultPart } from "@ai-sdk/provider-utils";
 
-/** Extract joined text from a ModelMessage's content. */
-export function getMessageText(message: ModelMessage): string {
-  const c = message.content;
-  if (typeof c === "string") return c;
-  if (!Array.isArray(c)) return "";
-  return c
-    .filter((p): p is { type: "text"; text: string } => p.type === "text")
-    .map((p) => p.text)
-    .join("");
-}
-
 // Runtime — the key abstraction. Tools call runtime, never Node APIs.
 export type ExecResult = { stdout: string; stderr: string; exitCode: number };
 

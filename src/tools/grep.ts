@@ -9,8 +9,7 @@ import { resolve } from "node:path";
 import { z } from "zod/v4";
 import { defineTool } from "../define-tool";
 import type { Tool } from "../types";
-
-const MAX_BYTES = 50 * 1024; // 50KB
+import { DEFAULT_MAX_BYTES } from "./truncate";
 
 const schema = z.object({
   pattern: z.string().describe("Regex pattern to search for"),
@@ -50,8 +49,10 @@ export function createGrepTool(cwd?: string): Tool {
         }
 
         const bytes = Buffer.byteLength(output, "utf-8");
-        if (bytes > MAX_BYTES) {
-          const truncated = Buffer.from(output, "utf-8").subarray(0, MAX_BYTES).toString("utf-8");
+        if (bytes > DEFAULT_MAX_BYTES) {
+          const truncated = Buffer.from(output, "utf-8")
+            .subarray(0, DEFAULT_MAX_BYTES)
+            .toString("utf-8");
           // Trim to last complete line
           const lastNewline = truncated.lastIndexOf("\n");
           const clean = lastNewline > 0 ? truncated.slice(0, lastNewline) : truncated;

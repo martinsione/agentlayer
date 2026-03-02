@@ -1,7 +1,7 @@
 export { Agent } from "./agent";
 export { Session, buildContext } from "./session";
 export { loop } from "./loop";
-export { getMessageText } from "./types";
+export { getMessageText } from "./utils";
 export type { LoopConfig, LoopHooks } from "./loop";
 export type {
   ModelMessage,

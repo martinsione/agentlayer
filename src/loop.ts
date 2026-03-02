@@ -172,6 +172,21 @@ export async function* loop(
   const msgs = [...messages];
 
   const toolDefs = buildToolDefs(tools, runtime, hooks, config.onToolProgress);
+
+  const budget = getThinkingBudget(thinkingLevel, thinkingBudgets);
+  const resolvedProviderOptions =
+    providerOptions || budget !== undefined
+      ? {
+          ...providerOptions,
+          ...(budget !== undefined && {
+            anthropic: {
+              ...(providerOptions?.anthropic as Record<string, unknown> | undefined),
+              thinking: { type: "enabled", budgetTokens: budget },
+            },
+          }),
+        }
+      : undefined;
+
   let step = 0;
 
   while (step < maxSteps) {
@@ -199,18 +214,7 @@ export async function* loop(
       }
     }
 
-    const budget = getThinkingBudget(thinkingLevel, thinkingBudgets);
     const contextMessages = transformContext ? await transformContext([...msgs]) : msgs;
-
-    const mergedProviderOptions = {
-      ...providerOptions,
-      ...(budget !== undefined && {
-        anthropic: {
-          ...(providerOptions?.anthropic as Record<string, unknown> | undefined),
-          thinking: { type: "enabled", budgetTokens: budget },
-        },
-      }),
-    };
 
     const result = streamText({
       model,
@@ -219,9 +223,7 @@ export async function* loop(
       tools: currentToolDefs as Parameters<typeof streamText>[0]["tools"],
       stopWhen: stepCountIs(1),
       abortSignal: signal,
-      ...(Object.keys(mergedProviderOptions).length > 0 && {
-        providerOptions: mergedProviderOptions,
-      }),
+      ...(resolvedProviderOptions && { providerOptions: resolvedProviderOptions }),
     });
 
     let hasToolCalls = false;

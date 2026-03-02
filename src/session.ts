@@ -1,7 +1,6 @@
 import type { ModelMessage } from "@ai-sdk/provider-utils";
 import type { LanguageModel } from "ai";
 import { loop, type LoopConfig } from "./loop";
-import { getMessageText } from "./types";
 import type {
   MessageEntry,
   SendMode,
@@ -17,6 +16,7 @@ import type {
   ThinkingLevel,
   ThinkingBudgets,
 } from "./types";
+import { getMessageText } from "./utils";
 
 type Listener<T> = (event: T) => unknown | Promise<unknown>;
 

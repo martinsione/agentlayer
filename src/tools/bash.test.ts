@@ -1,9 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import { NodeRuntime } from "../runtime/node";
-import type { Runtime, ExecResult, ExecOptions } from "../types";
+import type { Runtime, ExecOptions } from "../types";
 import { BashTool, createBashTool } from "./bash";
 
 const ctx = { runtime: new NodeRuntime() };
+
+function createMockRuntime(onExec?: (opts?: ExecOptions) => void): Runtime {
+  return {
+    cwd: "/mock/sandbox/dir",
+    async exec(_cmd: string, opts?: ExecOptions) {
+      onExec?.(opts);
+      return { stdout: "ok", stderr: "", exitCode: 0 };
+    },
+    async readFile() {
+      return "";
+    },
+    async writeFile() {},
+  };
+}
 
 describe("BashTool", () => {
   test("returns stdout for successful command", async () => {
@@ -35,38 +49,22 @@ describe("BashTool", () => {
 
   test("default BashTool uses ctx.runtime.cwd, not process.cwd()", async () => {
     let capturedCwd: string | undefined;
-    const mockRuntime: Runtime = {
-      cwd: "/mock/sandbox/dir",
-      async exec(_cmd: string, opts?: ExecOptions): Promise<ExecResult> {
-        capturedCwd = opts?.cwd;
-        return { stdout: "ok", stderr: "", exitCode: 0 };
-      },
-      async readFile() {
-        return "";
-      },
-      async writeFile() {},
-    };
+    const mock = createMockRuntime((opts) => {
+      capturedCwd = opts?.cwd;
+    });
 
-    await BashTool.execute({ command: "echo hi" }, { runtime: mockRuntime });
+    await BashTool.execute({ command: "echo hi" }, { runtime: mock });
     expect(capturedCwd).toBe("/mock/sandbox/dir");
   });
 
   test("createBashTool with explicit cwd overrides runtime.cwd", async () => {
     let capturedCwd: string | undefined;
-    const mockRuntime: Runtime = {
-      cwd: "/mock/sandbox/dir",
-      async exec(_cmd: string, opts?: ExecOptions): Promise<ExecResult> {
-        capturedCwd = opts?.cwd;
-        return { stdout: "ok", stderr: "", exitCode: 0 };
-      },
-      async readFile() {
-        return "";
-      },
-      async writeFile() {},
-    };
+    const mock = createMockRuntime((opts) => {
+      capturedCwd = opts?.cwd;
+    });
 
     const tool = createBashTool("/explicit/dir");
-    await tool.execute({ command: "echo hi" }, { runtime: mockRuntime });
+    await tool.execute({ command: "echo hi" }, { runtime: mock });
     expect(capturedCwd).toBe("/explicit/dir");
   });
 });

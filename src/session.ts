@@ -400,9 +400,9 @@ export class Session {
     };
 
     try {
-      for (const msg of initialUserMessages) await persistUserMessage(msg, false);
-
       await this.emit("turn-start", {});
+
+      for (const msg of initialUserMessages) await persistUserMessage(msg, false);
 
       for await (const event of gen) {
         for (const msg of pendingUserMessages.splice(0)) await persistUserMessage(msg);

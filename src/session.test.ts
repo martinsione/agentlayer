@@ -228,7 +228,7 @@ describe("Session.send", () => {
       order.push("text-delta");
     });
     session.on("message", (e) => {
-      if (e.message.role !== "user") order.push("message");
+      order.push(e.message.role === "user" ? "user-message" : "message");
     });
     session.on("turn-end", () => {
       order.push("turn-end");
@@ -238,6 +238,7 @@ describe("Session.send", () => {
     await session.waitForIdle();
 
     expect(order[0]).toBe("turn-start");
+    expect(order[1]).toBe("user-message");
     expect(order).toContain("text-start");
     expect(order).toContain("text-delta");
     expect(order).toContain("message");

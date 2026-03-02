@@ -44,37 +44,25 @@ export function createGrepTool(cwd?: string): Tool {
 
       const command = `grep ${args.join(" ")}`;
 
-      try {
-        const result = await ctx.runtime.exec(command, { cwd: baseCwd });
-        const output = result.stdout;
+      const result = await ctx.runtime.exec(command, { cwd: baseCwd });
+      const output = result.stdout;
 
-        if (!output.trim()) {
-          return "No matches found.";
-        }
-
-        const bytes = Buffer.byteLength(output, "utf-8");
-        if (bytes > DEFAULT_MAX_BYTES) {
-          const truncated = Buffer.from(output, "utf-8")
-            .subarray(0, DEFAULT_MAX_BYTES)
-            .toString("utf-8");
-          // Trim to last complete line
-          const lastNewline = truncated.lastIndexOf("\n");
-          const clean = lastNewline > 0 ? truncated.slice(0, lastNewline) : truncated;
-          return `${clean}\n\n[Output truncated: ${bytes} bytes total, showing first 50KB]`;
-        }
-
-        return output.trimEnd();
-      } catch (err) {
-        // grep exits with code 1 when no matches are found
-        if (err instanceof Error && err.message.includes("exit code 1")) {
-          return "No matches found.";
-        }
-        // grep exit code 1 is embedded in the error message from BashTool-style exec
-        if (err instanceof Error && err.message.includes("exited with code 1")) {
-          return "No matches found.";
-        }
-        throw err;
+      if (!output.trim()) {
+        return "No matches found.";
       }
+
+      const bytes = Buffer.byteLength(output, "utf-8");
+      if (bytes > DEFAULT_MAX_BYTES) {
+        const truncated = Buffer.from(output, "utf-8")
+          .subarray(0, DEFAULT_MAX_BYTES)
+          .toString("utf-8");
+        // Trim to last complete line
+        const lastNewline = truncated.lastIndexOf("\n");
+        const clean = lastNewline > 0 ? truncated.slice(0, lastNewline) : truncated;
+        return `${clean}\n\n[Output truncated: ${bytes} bytes total, showing first 50KB]`;
+      }
+
+      return output.trimEnd();
     },
   });
 }

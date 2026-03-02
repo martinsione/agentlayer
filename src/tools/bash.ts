@@ -10,6 +10,7 @@ import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod/v4";
+import { RuntimeAbortError, RuntimeTimeoutError } from "../errors";
 import type { Tool, ToolContext } from "../types";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateTail } from "./truncate";
 
@@ -33,30 +34,20 @@ export interface BashToolOptions {
 // Error classification helpers
 // ---------------------------------------------------------------------------
 
-/** Check whether an error represents an abort (custom format or standard AbortError). */
 function isAbortError(err: Error): boolean {
-  // Custom format from runtime: "aborted"
-  if (err.message === "aborted") return true;
-  // Standard DOMException from AbortSignal (used by VercelSandboxRuntime, JustBashRuntime, etc.)
-  if (err.name === "AbortError") return true;
+  if (err instanceof RuntimeAbortError) return true;
+  if (err.name === "AbortError") return true; // DOMException fallback
   return false;
 }
 
-/** Check whether an error represents a timeout (custom format or standard TimeoutError). */
 function isTimeoutError(err: Error): boolean {
-  // Custom format from runtime: "timeout:<seconds>"
-  if (err.message.startsWith("timeout:")) return true;
-  // Standard DOMException from AbortSignal.timeout()
-  if (err.name === "TimeoutError") return true;
+  if (err instanceof RuntimeTimeoutError) return true;
+  if (err.name === "TimeoutError") return true; // DOMException fallback
   return false;
 }
 
-/** Extract timeout seconds from either the custom "timeout:<s>" format or the input value. */
 function extractTimeoutSecs(err: Error, inputTimeout?: number): string {
-  if (err.message.startsWith("timeout:")) {
-    return err.message.split(":")[1];
-  }
-  // For standard TimeoutError, fall back to the user-supplied timeout value
+  if (err instanceof RuntimeTimeoutError) return String(err.timeoutSecs);
   return inputTimeout != null ? String(inputTimeout) : "unknown";
 }
 

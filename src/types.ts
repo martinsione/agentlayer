@@ -18,6 +18,14 @@ export type ExecOptions = {
 
 export interface Runtime {
   readonly cwd: string;
+  /**
+   * Execute a shell command and return its result.
+   *
+   * **Error contract:**
+   * - Non-zero exit codes MUST be resolved (not rejected) via `ExecResult.exitCode`.
+   * - Abort SHOULD throw `RuntimeAbortError` or a `DOMException` with `name: "AbortError"`.
+   * - Timeout SHOULD throw `RuntimeTimeoutError` or a `DOMException` with `name: "TimeoutError"`.
+   */
   exec(command: string, opts?: ExecOptions): Promise<ExecResult>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;

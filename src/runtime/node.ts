@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
+import { RuntimeAbortError, RuntimeTimeoutError } from "../errors";
 import type { Runtime, ExecResult, ExecOptions } from "../types";
 
 const MAX_OUTPUT_BYTES = 1024 * 1024; // 1 MB
@@ -174,11 +175,11 @@ export class NodeRuntime implements Runtime {
         if (opts?.signal) opts.signal.removeEventListener("abort", onAbort);
 
         if (opts?.signal?.aborted) {
-          reject(new Error("aborted"));
+          reject(new RuntimeAbortError());
           return;
         }
         if (timedOut) {
-          reject(new Error(`timeout:${opts?.timeout}`));
+          reject(new RuntimeTimeoutError(opts!.timeout!));
           return;
         }
 

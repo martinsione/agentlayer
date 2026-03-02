@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { RuntimeAbortError, RuntimeTimeoutError } from "../errors";
 import { NodeRuntime } from "../runtime/node";
 import type { Runtime, ExecOptions } from "../types";
 import { BashTool, createBashTool } from "./bash";
@@ -139,6 +140,50 @@ describe("BashTool with DOMException-style errors", () => {
     } catch (err: any) {
       expect(err.message).toContain("partial output");
       expect(err.message).toContain("Command timed out after 3 seconds");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typed runtime errors (RuntimeAbortError / RuntimeTimeoutError)
+// ---------------------------------------------------------------------------
+describe("BashTool with typed runtime errors", () => {
+  function createThrowingRuntime(errorToThrow: Error): Runtime {
+    return {
+      cwd: "/tmp",
+      async exec(_cmd: string, opts?: ExecOptions) {
+        if (opts?.onData) opts.onData(Buffer.from("partial output"));
+        throw errorToThrow;
+      },
+      async readFile() {
+        return "";
+      },
+      async writeFile() {},
+    };
+  }
+
+  test("RuntimeAbortError produces 'Command aborted'", async () => {
+    const runtime = createThrowingRuntime(new RuntimeAbortError());
+    await expect(BashTool.execute({ command: "test" }, { runtime })).rejects.toThrow(
+      "Command aborted",
+    );
+  });
+
+  test("RuntimeTimeoutError uses timeoutSecs field", async () => {
+    const runtime = createThrowingRuntime(new RuntimeTimeoutError(42));
+    await expect(BashTool.execute({ command: "test", timeout: 99 }, { runtime })).rejects.toThrow(
+      "Command timed out after 42 seconds",
+    );
+  });
+
+  test("RuntimeTimeoutError includes partial output", async () => {
+    const runtime = createThrowingRuntime(new RuntimeTimeoutError(10));
+    try {
+      await BashTool.execute({ command: "test" }, { runtime });
+      expect.unreachable("should have thrown");
+    } catch (err: any) {
+      expect(err.message).toContain("partial output");
+      expect(err.message).toContain("Command timed out after 10 seconds");
     }
   });
 });

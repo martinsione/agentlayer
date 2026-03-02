@@ -346,7 +346,9 @@ export class Session {
         ? AbortSignal.any([this.controller.signal, opts.signal])
         : this.controller.signal;
       this.emit("status", { status: "busy" });
-      this.runLoop(combinedSignal, userMessages);
+      // Errors are channelled through this.completion via settle().reject(),
+      // so suppress the floating promise rejection to avoid noisy unhandled-rejection warnings.
+      this.runLoop(combinedSignal, userMessages).catch(() => {});
       return;
     }
 

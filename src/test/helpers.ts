@@ -78,9 +78,13 @@ export function createMockModel(responses: MockResponse[]) {
 
 export function createFailingModel(message = "model crashed") {
   return new MockLanguageModelV3({
-    doStream: async () => {
-      throw new Error(message);
-    },
+    doStream: async () => ({
+      stream: new ReadableStream({
+        start(controller) {
+          controller.error(new Error(message));
+        },
+      }),
+    }),
   });
 }
 

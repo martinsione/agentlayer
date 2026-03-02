@@ -544,7 +544,14 @@ describe("Session.send modes", () => {
     const failOnceThenSucceed = new MockLanguageModelV3({
       doStream: async () => {
         callCount++;
-        if (callCount === 1) throw new Error("boom");
+        if (callCount === 1)
+          return {
+            stream: new ReadableStream({
+              start(controller) {
+                controller.error(new Error("boom"));
+              },
+            }),
+          };
         return {
           stream: convertArrayToReadableStream<LanguageModelV3StreamPart>([
             { type: "stream-start", warnings: [] },

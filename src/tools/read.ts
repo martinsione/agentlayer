@@ -29,7 +29,7 @@ export function createReadTool(cwd?: string): Tool {
       const bytes = Buffer.byteLength(content, "utf-8");
 
       if (bytes > MAX_BYTES) {
-        const truncated = Buffer.from(content, "utf-8").subarray(0, MAX_BYTES).toString("utf-8");
+        const truncated = truncateStringToBytesFromStart(content, MAX_BYTES);
         return `${truncated}\n\n[Output truncated: file is ${bytes} bytes, showing first 100KB]`;
       }
 
@@ -40,3 +40,14 @@ export function createReadTool(cwd?: string): Tool {
 
 /** Default read tool. Uses ctx.runtime.cwd at execution time. */
 export const ReadTool = createReadTool();
+
+/** Truncate a string to at most `maxBytes` UTF-8 bytes from the start, respecting character boundaries. */
+function truncateStringToBytesFromStart(str: string, maxBytes: number): string {
+  const buf = Buffer.from(str, "utf-8");
+  if (buf.length <= maxBytes) return str;
+  let end = maxBytes;
+  // Walk back to the start of a multi-byte character if we sliced mid-character.
+  // In UTF-8, continuation bytes have the pattern 10xxxxxx (0x80..0xBF).
+  while (end > 0 && (buf[end]! & 0xc0) === 0x80) end--;
+  return buf.subarray(0, end).toString("utf-8");
+}

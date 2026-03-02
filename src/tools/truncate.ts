@@ -87,7 +87,7 @@ export function truncateTail(content: string, options: TruncationOptions = {}): 
     outputBytesCount += lineBytes;
   }
 
-  if (outputLinesArr.length >= maxLines && outputBytesCount <= maxBytes) {
+  if (outputLinesArr.length >= maxLines && outputBytesCount <= maxBytes && !lastLinePartial) {
     truncatedBy = "lines";
   }
 

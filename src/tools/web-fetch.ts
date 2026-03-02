@@ -1,8 +1,8 @@
 import { z } from "zod/v4";
 import { defineTool } from "../define-tool";
+import { DEFAULT_MAX_BYTES } from "./truncate";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const DEFAULT_MAX_BYTES = 50 * 1024;
 
 export const WebFetchTool = defineTool({
   name: "web_fetch",

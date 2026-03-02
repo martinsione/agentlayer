@@ -227,82 +227,88 @@ export async function* loop(
 
     yield { type: "step-start", step } as LoopEvent;
 
-    // Drain point 1: inject steering messages before next model call
-    if (getSteeringMessages) {
-      const steering = getSteeringMessages();
-      for (const msg of steering) msgs.push(msg);
-    }
+    let hasToolCalls = false;
+    let aborted = false;
+    try {
+      // Drain point 1: inject steering messages before next model call
+      if (getSteeringMessages) {
+        const steering = getSteeringMessages();
+        for (const msg of steering) msgs.push(msg);
+      }
 
-    let system = instructions;
-    let currentToolDefs = toolDefs;
+      let system = instructions;
+      let currentToolDefs = toolDefs;
 
-    if (hooks?.beforeModelCall) {
-      const decision = await hooks.beforeModelCall({ instructions: system, tools, messages: msgs });
-      if (decision && typeof decision === "object") {
-        if ("instructions" in decision && decision.instructions !== undefined)
-          system = decision.instructions;
-        if ("tools" in decision && decision.tools !== undefined) {
-          currentToolDefs = buildToolDefs({ ...baseToolOpts, tools: decision.tools });
+      if (hooks?.beforeModelCall) {
+        const decision = await hooks.beforeModelCall({ instructions: system, tools, messages: msgs });
+        if (decision && typeof decision === "object") {
+          if ("instructions" in decision && decision.instructions !== undefined)
+            system = decision.instructions;
+          if ("tools" in decision && decision.tools !== undefined) {
+            currentToolDefs = buildToolDefs({ ...baseToolOpts, tools: decision.tools });
+          }
         }
       }
-    }
 
-    const contextMessages = transformContext ? await transformContext([...msgs]) : msgs;
+      const contextMessages = transformContext ? await transformContext([...msgs]) : msgs;
 
-    const result = streamText({
-      model,
-      system,
-      messages: contextMessages,
-      tools: currentToolDefs as Parameters<typeof streamText>[0]["tools"],
-      stopWhen: stepCountIs(1),
-      abortSignal: signal,
-      ...(resolvedProviderOptions && { providerOptions: resolvedProviderOptions }),
-    });
+      const result = streamText({
+        model,
+        system,
+        messages: contextMessages,
+        tools: currentToolDefs as Parameters<typeof streamText>[0]["tools"],
+        stopWhen: stepCountIs(1),
+        abortSignal: signal,
+        ...(resolvedProviderOptions && { providerOptions: resolvedProviderOptions }),
+      });
 
-    let hasToolCalls = false;
+      for await (const part of result.fullStream) {
+        if (signal?.aborted) {
+          aborted = true;
+          break;
+        }
 
-    for await (const part of result.fullStream) {
-      if (signal?.aborted) break;
+        if (part.type === "tool-call") hasToolCalls = true;
 
-      if (part.type === "tool-call") hasToolCalls = true;
-
-      if (STREAM_EVENTS.has(part.type)) {
-        yield part as LoopEvent;
+        if (STREAM_EVENTS.has(part.type)) {
+          yield part as LoopEvent;
+        }
       }
-    }
 
-    if (signal?.aborted) break;
+      if (!aborted && signal?.aborted) aborted = true;
+      if (aborted) continue; // finally yields step-end, then while-check exits
 
-    // Get response messages, yield message events
-    const [response, usage, finishReason] = await Promise.all([
-      result.response,
-      result.usage,
-      result.finishReason,
-    ]);
+      // Get response messages, yield message events
+      const [response, usage, finishReason] = await Promise.all([
+        result.response,
+        result.usage,
+        result.finishReason,
+      ]);
 
-    for (const msg of response.messages) {
-      msgs.push(msg as ModelMessage);
+      for (const msg of response.messages) {
+        msgs.push(msg as ModelMessage);
 
-      if (msg.role === "assistant") {
-        yield {
-          type: "message",
-          message: msg as ModelMessage & { role: "assistant" },
-          usage: {
-            inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0,
-            totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-          },
-          finishReason,
-        };
-      } else {
-        yield {
-          type: "message",
-          message: msg as ModelMessage & { role: "tool" },
-        };
+        if (msg.role === "assistant") {
+          yield {
+            type: "message",
+            message: msg as ModelMessage & { role: "assistant" },
+            usage: {
+              inputTokens: usage.inputTokens ?? 0,
+              outputTokens: usage.outputTokens ?? 0,
+              totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+            },
+            finishReason,
+          };
+        } else {
+          yield {
+            type: "message",
+            message: msg as ModelMessage & { role: "tool" },
+          };
+        }
       }
+    } finally {
+      yield { type: "step-end", step } as LoopEvent;
     }
-
-    yield { type: "step-end", step } as LoopEvent;
 
     // Drain point 3: follow-up messages keep the loop alive
     if (!hasToolCalls) {

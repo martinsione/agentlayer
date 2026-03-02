@@ -78,4 +78,31 @@ describe("JsonlSessionStore", () => {
     const loaded = await store.load("s1");
     expect(loaded).toEqual([entry, entry]);
   });
+
+  test("rejects sessionId that escapes store directory", async () => {
+    const store = new JsonlSessionStore(dir);
+    await expect(store.load("../../etc/passwd")).rejects.toThrow("path escapes store directory");
+    await expect(store.append("../outside", makeEntry())).rejects.toThrow(
+      "path escapes store directory",
+    );
+    await expect(store.exists("../../etc/shadow")).rejects.toThrow("path escapes store directory");
+  });
+
+  test("concurrent appends to the same session are not interleaved", async () => {
+    const store = new JsonlSessionStore(dir);
+    const entries = Array.from({ length: 50 }, (_, i) =>
+      makeEntry({
+        message: {
+          role: "user",
+          content: [{ type: "text", text: `message-${i}-${"x".repeat(8192)}` }],
+        },
+      }),
+    );
+
+    // Fire all appends concurrently
+    await Promise.all(entries.map((e) => store.append("s1", e)));
+
+    const loaded = await store.load("s1");
+    expect(loaded).toEqual(entries);
+  });
 });

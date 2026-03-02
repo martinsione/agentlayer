@@ -141,6 +141,11 @@ export type BeforeStopEvent = {
 };
 export type BeforeStopDecision = void | { preventStop: true };
 
+/**
+ * Public hook event map — uses kebab-case event names (standard for event
+ * emitters, like DOM events).  Internally the loop uses a camelCase callback
+ * interface (LoopHooks in loop.ts); Session.runLoop() bridges the two.
+ */
 export type HookEventMap = {
   "before-tool-call": { payload: BeforeToolCallEvent; decision: ToolCallDecision };
   "after-tool-call": { payload: AfterToolCallEvent; decision: AfterToolCallDecision };

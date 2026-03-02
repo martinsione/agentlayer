@@ -373,6 +373,7 @@ export class Session {
       {
         ...this.config,
         sessionId: this.id,
+        // Bridge internal camelCase LoopHooks to public kebab-case events
         hooks: {
           beforeToolCall: (e) => this.runHook("before-tool-call", e),
           afterToolCall: (e) => this.runHook("after-tool-call", e),

@@ -24,6 +24,13 @@ import type {
 
 const STREAM_EVENTS: Set<string> = new Set(STREAM_EVENT_TYPES);
 
+/**
+ * Internal callback interface for the loop — uses camelCase (standard for JS
+ * object methods).  The public API uses kebab-case event names instead
+ * (e.g. "before-tool-call") via Session.on() / AgentHooks.  Session.runLoop()
+ * bridges the two by forwarding each camelCase callback to the kebab-case
+ * event emitter (see session.ts).
+ */
 export type LoopHooks = {
   beforeToolCall?: (event: BeforeToolCallEvent) => Promise<ToolCallDecision>;
   afterToolCall?: (event: AfterToolCallEvent) => Promise<AfterToolCallDecision>;

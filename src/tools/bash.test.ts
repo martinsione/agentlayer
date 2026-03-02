@@ -68,3 +68,77 @@ describe("BashTool", () => {
     expect(capturedCwd).toBe("/explicit/dir");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests for DOMException-style errors from custom Runtime implementations
+// (e.g. VercelSandboxRuntime, JustBashRuntime use AbortSignal.timeout())
+// ---------------------------------------------------------------------------
+describe("BashTool with DOMException-style errors", () => {
+  /** Create a Runtime whose exec() feeds partial output then throws. */
+  function createThrowingRuntime(errorToThrow: Error): Runtime {
+    return {
+      cwd: "/tmp",
+      async exec(_cmd: string, opts?: ExecOptions) {
+        if (opts?.onData) opts.onData(Buffer.from("partial output"));
+        throw errorToThrow;
+      },
+      async readFile() {
+        return "";
+      },
+      async writeFile() {},
+    };
+  }
+
+  test("handles standard AbortError (DOMException)", async () => {
+    const runtime = createThrowingRuntime(
+      new DOMException("The operation was aborted.", "AbortError"),
+    );
+    await expect(BashTool.execute({ command: "test" }, { runtime })).rejects.toThrow(
+      "Command aborted",
+    );
+  });
+
+  test("handles standard TimeoutError (DOMException)", async () => {
+    const runtime = createThrowingRuntime(
+      new DOMException("The operation timed out.", "TimeoutError"),
+    );
+    await expect(
+      BashTool.execute({ command: "test", timeout: 5 }, { runtime }),
+    ).rejects.toThrow("Command timed out after 5 seconds");
+  });
+
+  test("TimeoutError without user-supplied timeout shows 'unknown'", async () => {
+    const runtime = createThrowingRuntime(
+      new DOMException("The operation timed out.", "TimeoutError"),
+    );
+    await expect(BashTool.execute({ command: "test" }, { runtime })).rejects.toThrow(
+      "Command timed out after unknown seconds",
+    );
+  });
+
+  test("includes partial output with DOMException AbortError", async () => {
+    const runtime = createThrowingRuntime(
+      new DOMException("The operation was aborted.", "AbortError"),
+    );
+    try {
+      await BashTool.execute({ command: "test" }, { runtime });
+      expect.unreachable("should have thrown");
+    } catch (err: any) {
+      expect(err.message).toContain("partial output");
+      expect(err.message).toContain("Command aborted");
+    }
+  });
+
+  test("includes partial output with DOMException TimeoutError", async () => {
+    const runtime = createThrowingRuntime(
+      new DOMException("The operation timed out.", "TimeoutError"),
+    );
+    try {
+      await BashTool.execute({ command: "test", timeout: 3 }, { runtime });
+      expect.unreachable("should have thrown");
+    } catch (err: any) {
+      expect(err.message).toContain("partial output");
+      expect(err.message).toContain("Command timed out after 3 seconds");
+    }
+  });
+});

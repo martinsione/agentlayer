@@ -30,6 +30,37 @@ export interface BashToolOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Error classification helpers
+// ---------------------------------------------------------------------------
+
+/** Check whether an error represents an abort (custom format or standard AbortError). */
+function isAbortError(err: Error): boolean {
+  // Custom format from runtime: "aborted"
+  if (err.message === "aborted") return true;
+  // Standard DOMException from AbortSignal (used by VercelSandboxRuntime, JustBashRuntime, etc.)
+  if (err.name === "AbortError") return true;
+  return false;
+}
+
+/** Check whether an error represents a timeout (custom format or standard TimeoutError). */
+function isTimeoutError(err: Error): boolean {
+  // Custom format from runtime: "timeout:<seconds>"
+  if (err.message.startsWith("timeout:")) return true;
+  // Standard DOMException from AbortSignal.timeout()
+  if (err.name === "TimeoutError") return true;
+  return false;
+}
+
+/** Extract timeout seconds from either the custom "timeout:<s>" format or the input value. */
+function extractTimeoutSecs(err: Error, inputTimeout?: number): string {
+  if (err.message.startsWith("timeout:")) {
+    return err.message.split(":")[1];
+  }
+  // For standard TimeoutError, fall back to the user-supplied timeout value
+  return inputTimeout != null ? String(inputTimeout) : "unknown";
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -137,13 +168,13 @@ export function createBashTool(cwd?: string, options?: BashToolOptions): Tool {
           const fullBuffer = Buffer.concat(chunks);
           let output = fullBuffer.toString("utf-8");
 
-          if (err.message === "aborted") {
+          if (isAbortError(err)) {
             if (output) output += "\n\n";
             output += "Command aborted";
             throw new Error(output);
           }
-          if (err.message.startsWith("timeout:")) {
-            const timeoutSecs = err.message.split(":")[1];
+          if (isTimeoutError(err)) {
+            const timeoutSecs = extractTimeoutSecs(err, timeout);
             if (output) output += "\n\n";
             output += `Command timed out after ${timeoutSecs} seconds`;
             throw new Error(output);

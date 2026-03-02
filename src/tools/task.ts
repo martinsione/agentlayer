@@ -8,7 +8,7 @@
 import type { LanguageModel } from "ai";
 import { z } from "zod/v4";
 import { loop } from "../loop";
-import type { ModelMessage, Tool, ToolContext } from "../types";
+import type { ModelMessage, Tool, ToolContext, ToolExecuteReturn } from "../types";
 import { getLastAssistantText } from "../utils";
 
 const taskSchema = z.object({
@@ -41,7 +41,10 @@ export function createTaskTool(config: TaskToolConfig): Tool {
     label,
     description,
     parameters: z.toJSONSchema(taskSchema, { target: "draft-7" }) as Record<string, unknown>,
-    execute: async (input: Record<string, unknown>, ctx: ToolContext): Promise<string> => {
+    execute: async function* (
+      input: Record<string, unknown>,
+      ctx: ToolContext,
+    ): AsyncGenerator<string, string> {
       const { prompt } = taskSchema.parse(input);
 
       const messages: ModelMessage[] = [
@@ -55,6 +58,10 @@ export function createTaskTool(config: TaskToolConfig): Tool {
       )) {
         if (event.type === "message") {
           messages.push(event.message);
+        }
+        // Forward text deltas so the parent session emits tool-progress events
+        if (event.type === "text-delta") {
+          yield event.text;
         }
       }
 

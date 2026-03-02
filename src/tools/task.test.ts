@@ -1,8 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import { JustBashRuntime } from "../runtime/just-bash";
 import { createMockModel, drainLoop, userMessage } from "../test/helpers";
-import type { Tool } from "../types";
+import type { Tool, ToolProgressEvent } from "../types";
 import { createTaskTool } from "./task";
+
+/** Drain an async generator, collecting yielded values and the final return. */
+async function drainGenerator(
+  gen: AsyncGenerator<string, string>,
+): Promise<{ yields: string[]; result: string }> {
+  const yields: string[] = [];
+  let iter = await gen.next();
+  while (!iter.done) {
+    yields.push(iter.value);
+    iter = await gen.next();
+  }
+  return { yields, result: iter.value };
+}
 
 describe("createTaskTool", () => {
   const runtime = new JustBashRuntime();
@@ -110,16 +123,16 @@ describe("createTaskTool", () => {
       tools: [slowTool],
     });
 
-    // Run the task tool directly to check signal propagation
-    const result = await taskTool.execute(
+    // Run the task tool directly — execute now returns an async generator
+    const gen = taskTool.execute(
       { prompt: "Do something slow" },
       { runtime, signal: controller.signal },
-    );
+    ) as AsyncGenerator<string, string>;
+    const { result } = await drainGenerator(gen);
 
     // The nested loop should have been cut short by the abort.
     // It either returns the partial text or the no-response fallback.
-    const output = result as string;
-    expect(output).not.toBe("Should not reach here");
+    expect(result).not.toBe("Should not reach here");
   });
 
   test("custom name and description", () => {
@@ -139,10 +152,13 @@ describe("createTaskTool", () => {
     const innerModel = createMockModel([{ text: "" }]);
     const taskTool = createTaskTool({ model: innerModel });
 
-    const result = await taskTool.execute({ prompt: "Do something" }, { runtime });
+    const gen = taskTool.execute({ prompt: "Do something" }, { runtime }) as AsyncGenerator<
+      string,
+      string
+    >;
+    const { result } = await drainGenerator(gen);
 
-    const output = result as string;
-    expect(output).toBe("(no response from subtask)");
+    expect(result).toBe("(no response from subtask)");
   });
 
   test("respects maxSteps configuration", async () => {
@@ -171,9 +187,53 @@ describe("createTaskTool", () => {
       maxSteps: 2,
     });
 
-    const result = await taskTool.execute({ prompt: "Count things" }, { runtime });
+    const gen = taskTool.execute({ prompt: "Count things" }, { runtime }) as AsyncGenerator<
+      string,
+      string
+    >;
+    await drainGenerator(gen);
 
     // maxSteps: 2 means only 2 loop iterations, so count should be <= 2
     expect(counter.value).toBeLessThanOrEqual(2);
+  });
+
+  test("yields subagent text deltas as tool-progress events", async () => {
+    // The inner model responds with "Hello world" — its text-delta will be forwarded
+    const innerModel = createMockModel([{ text: "Hello world" }]);
+    const taskTool = createTaskTool({ model: innerModel });
+
+    // The outer model calls the task tool, then responds with "Done"
+    const outerModel = createMockModel([
+      {
+        toolCalls: [{ id: "t1", name: "task", input: { prompt: "Say hello" } }],
+      },
+      { text: "Done" },
+    ]);
+
+    // Collect tool-progress events via onToolProgress callback
+    const progressEvents: ToolProgressEvent[] = [];
+
+    const events = await drainLoop([userMessage("Go")], {
+      model: outerModel,
+      tools: [taskTool],
+      runtime,
+      maxSteps: 10,
+      onToolProgress: (event) => progressEvents.push(event),
+    });
+
+    // Verify tool-progress events were emitted with subagent text content
+    expect(progressEvents.length).toBeGreaterThan(0);
+    const taskProgress = progressEvents.filter((e) => e.toolName === "task");
+    expect(taskProgress.length).toBeGreaterThan(0);
+    // The concatenated progress text should contain the subagent's output
+    const progressText = taskProgress.map((e) => e.text).join("");
+    expect(progressText).toContain("Hello world");
+
+    // The tool result should still contain the final output
+    const toolResults = events.filter((e) => e.type === "tool-result");
+    expect(toolResults).toHaveLength(1);
+    if (toolResults[0]?.type === "tool-result") {
+      expect(toolResults[0].output).toBe("Hello world");
+    }
   });
 });

@@ -121,7 +121,10 @@ export type AfterToolCallEvent = {
   toolCallId: string;
   toolName: string;
   input: Record<string, unknown>;
-} & ({ result: string; error?: undefined } | { result?: undefined; error: Error });
+} & (
+  | { result: string; metadata?: Record<string, unknown>; error?: undefined }
+  | { result?: undefined; error: Error }
+);
 
 export type AfterToolCallDecision = void | undefined | { result: string };
 

@@ -102,6 +102,7 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
           : undefined;
 
         let result: string;
+        let metadata: Record<string, unknown> | undefined;
         try {
           const rawOrGen = t.execute(resolvedInput, {
             runtime,
@@ -126,7 +127,12 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
             raw = await (rawOrGen as Promise<string | ToolResult>);
           }
 
-          result = typeof raw === "string" ? raw : raw.output;
+          if (typeof raw === "string") {
+            result = raw;
+          } else {
+            result = raw.output;
+            metadata = raw.metadata;
+          }
         } catch (err) {
           if (hooks?.afterToolCall) {
             await hooks.afterToolCall({
@@ -145,6 +151,7 @@ function buildToolDefs(opts: BuildToolDefsOpts): Record<string, unknown> {
             toolName: t.name,
             input: resolvedInput,
             result,
+            metadata,
           });
           if (decision && "result" in decision) return decision.result;
         }

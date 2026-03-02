@@ -532,6 +532,40 @@ describe("loop ToolResult normalization", () => {
     }
   });
 
+  test("ToolResult.metadata flows through afterToolCall hook", async () => {
+    const metadataTool = {
+      name: "meta_tool",
+      description: "returns output with metadata",
+      parameters: { type: "object", properties: {} },
+      execute: async (): Promise<ToolResult> => ({
+        output: "ok",
+        metadata: { exitCode: 0 },
+      }),
+    };
+    const model = createMockModel([
+      { toolCalls: [{ id: "c1", name: "meta_tool", input: {} }] },
+      { text: "Done" },
+    ]);
+
+    const hookPayloads: { result?: string; metadata?: Record<string, unknown> }[] = [];
+
+    await drainLoop([userMessage("Go")], {
+      model,
+      tools: [metadataTool],
+      runtime,
+      maxSteps: 10,
+      hooks: {
+        afterToolCall: async (e) => {
+          hookPayloads.push({ result: e.result, metadata: e.result ? e.metadata : undefined });
+        },
+      },
+    });
+
+    expect(hookPayloads).toHaveLength(1);
+    expect(hookPayloads[0]!.result).toBe("ok");
+    expect(hookPayloads[0]!.metadata).toEqual({ exitCode: 0 });
+  });
+
   test("ToolResult without metadata also works", async () => {
     const noMetaTool = {
       name: "no_meta_tool",

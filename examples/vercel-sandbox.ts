@@ -3,14 +3,42 @@
 // Requires: @vercel/sandbox (npm i @vercel/sandbox)
 // Run: npx tsx examples/vercel-sandbox.ts
 
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { Sandbox } from "@vercel/sandbox";
 import { Agent } from "agentlayer";
 import { VercelSandboxRuntime } from "agentlayer/runtime/sandbox";
 import { BashTool } from "agentlayer/tools/bash";
 import { attachLogger } from "./_log";
 
-const sandbox = await Sandbox.create({ runtime: "node24" });
-console.log(`Sandbox: ${sandbox.sandboxId}\n`);
+async function getOrCreateSandbox() {
+  const lockFilePath = path.join(
+    process.env.XDG_STATE_HOME || path.join(os.homedir(), ".local", "state"),
+    "agentlayer",
+    "vercel-sandbox.lock",
+  );
+  const sandboxId = await fs.readFile(lockFilePath, "utf-8").catch(() => null);
+
+  if (sandboxId) {
+    try {
+      const sb = await Sandbox.get({ sandboxId: sandboxId.trim() });
+      // Health check — Sandbox.get() can return a handle to a dead sandbox
+      await sb.runCommand({ cmd: "true" });
+      return sb;
+    } catch {
+      // Sandbox expired or unreachable — fall through to create
+    }
+  }
+
+  const ONE_HOUR_IN_MS = 60 * 60 * 1000;
+  const sandbox = await Sandbox.create({ runtime: "node24", timeout: 5 * ONE_HOUR_IN_MS });
+  await fs.mkdir(path.dirname(lockFilePath), { recursive: true });
+  await fs.writeFile(lockFilePath, sandbox.sandboxId);
+  return sandbox;
+}
+
+const sandbox = await getOrCreateSandbox();
 
 const agent = new Agent({
   model: "moonshotai/kimi-k2.5",

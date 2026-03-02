@@ -1036,6 +1036,39 @@ describe("buildContext", () => {
   });
 });
 
+describe("Session.prompt", () => {
+  test("sends and returns assistant text", async () => {
+    const { agent } = createTestAgent([{ text: "Hello back" }]);
+    const session = await agent.createSession();
+    const text = await session.prompt("Hi");
+    expect(text).toBe("Hello back");
+  });
+
+  test("streams text via onText callback", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const session = await agent.createSession();
+    const chunks: string[] = [];
+    const text = await session.prompt("Hi", {
+      onText: (t) => chunks.push(t),
+    });
+    expect(text).toBe("Hello");
+    expect(chunks).toEqual(["Hello"]);
+  });
+
+  test("works with tool calls", async () => {
+    const { agent } = createTestAgent(
+      [
+        { toolCalls: [{ id: "c1", name: "bash", input: { command: "echo hi" } }] },
+        { text: "Done" },
+      ],
+      { tools: [BashTool] },
+    );
+    const session = await agent.createSession();
+    const text = await session.prompt("Run echo");
+    expect(text).toBe("Done");
+  });
+});
+
 describe("Session dynamic config (model, tools, systemPrompt)", () => {
   test("changing model between turns uses the new model on the next send", async () => {
     const model1 = createMockModel([{ text: "From model 1" }]);

@@ -53,6 +53,7 @@ export type {
   ErrorEvent,
   SessionUsage,
   SessionStatus,
+  PromptResult,
   StatusEvent,
   StepStartEvent,
   StepEndEvent,

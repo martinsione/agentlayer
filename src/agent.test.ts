@@ -156,6 +156,26 @@ describe("Agent", () => {
   });
 });
 
+describe("Agent.prompt", () => {
+  test("creates ephemeral session and returns result", async () => {
+    const { agent } = createTestAgent([{ text: "Hello" }]);
+    const result = await agent.prompt("Hi");
+    expect(result.text).toBe("Hello");
+    expect(result.messages).toHaveLength(2); // user + assistant
+    expect(result.usage.totalTokens).toBeGreaterThan(0);
+  });
+
+  test("streams text via onText callback", async () => {
+    const { agent } = createTestAgent([{ text: "Streamed" }]);
+    const chunks: string[] = [];
+    const result = await agent.prompt("Hi", {
+      onText: (t) => chunks.push(t),
+    });
+    expect(result.text).toBe("Streamed");
+    expect(chunks).toEqual(["Streamed"]);
+  });
+});
+
 describe("Agent with JsonlSessionStore", () => {
   let dir: string;
 

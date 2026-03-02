@@ -237,6 +237,13 @@ export type LoopEvent =
   | ({ type: "step-start" } & StepStartEvent)
   | ({ type: "step-end" } & StepEndEvent);
 
+// Prompt result
+export type PromptResult = {
+  text: string;
+  messages: readonly ModelMessage[];
+  usage: SessionUsage & { totalTokens: number };
+};
+
 // Send mode
 export type SendMode = "steer" | "queue";
 

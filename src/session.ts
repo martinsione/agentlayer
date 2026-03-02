@@ -183,6 +183,29 @@ export class Session {
     this.config.thinkingBudgets = budgets;
   }
 
+  async prompt(
+    input: string | ModelMessage | ModelMessage[],
+    opts?: { onText?: (text: string) => void; signal?: AbortSignal },
+  ): Promise<string> {
+    let unsub: (() => void) | undefined;
+    if (opts?.onText) {
+      unsub = this.on("text-delta", (e) => opts.onText!(e.text));
+    }
+    this.send(input, { signal: opts?.signal });
+    try {
+      await this.waitForIdle();
+    } finally {
+      unsub?.();
+    }
+    // Return last assistant message text
+    for (let i = this._messages.length - 1; i >= 0; i--) {
+      if (this._messages[i]!.role === "assistant") {
+        return getMessageText(this._messages[i]!);
+      }
+    }
+    return "";
+  }
+
   abort(): void {
     this.controller?.abort();
   }

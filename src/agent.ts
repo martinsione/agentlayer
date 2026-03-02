@@ -1,8 +1,16 @@
+import type { ModelMessage } from "@ai-sdk/provider-utils";
 import type { LoopConfig } from "./loop";
 import { NodeRuntime } from "./runtime/node";
 import { Session } from "./session";
 import { InMemorySessionStore } from "./store/memory";
-import type { AgentHooks, AgentOptions, HookEvent, SessionOptions, SessionStore } from "./types";
+import type {
+  AgentHooks,
+  AgentOptions,
+  HookEvent,
+  PromptResult,
+  SessionOptions,
+  SessionStore,
+} from "./types";
 
 const DEFAULT_MAX_STEPS = 100;
 
@@ -55,6 +63,15 @@ export class Agent {
 
   async listSessions(): Promise<string[]> {
     return this.config.store.list();
+  }
+
+  async prompt(
+    input: string | ModelMessage | ModelMessage[],
+    opts?: { onText?: (text: string) => void; signal?: AbortSignal },
+  ): Promise<PromptResult> {
+    const session = await this.createSession();
+    const text = await session.prompt(input, opts);
+    return { text, messages: session.messages, usage: session.usage };
   }
 
   private applyHooks(session: Session): void {
